@@ -14,6 +14,7 @@ import { beforeAll, expect, it, vi } from 'vitest';
 let preset;
 let bundle;
 let definition;
+let sdkDefinition;
 
 beforeAll(async () => {
   ({ preset, bundles: [bundle] } = await prepareBrowserPreset(
@@ -21,6 +22,10 @@ beforeAll(async () => {
     { mearlApiVersion: '1.0.0', load: url => readFile(new URL(url)) },
   ));
   definition = readBundleJson(bundle, bundle.manifest.contributions.appProfiles[0]);
+  // The pinned SDK predates standalone App IDs.
+  const { defaultAppId, ...compatibleDefinition } = definition;
+  expect(defaultAppId).toBe('wechat');
+  sdkDefinition = compatibleDefinition;
 });
 
 it.each([
@@ -28,7 +33,7 @@ it.each([
   ['android', 'Android 17; Example Phone; wv'],
 ])('prepares a selectable %s WeChat H5 profile', (os, platform) => {
   expect(preset.appProfiles.wechat).toBe(definition.name);
-  const profile = resolveAppProfileDefinition(definition, {
+  const profile = resolveAppProfileDefinition(sdkDefinition, {
     os,
     deviceModel: 'Example Phone',
     appVersion: '8.0.99',
@@ -51,7 +56,7 @@ function createPage({ bridge, wx, geolocation } = {}) {
   const ready = vi.fn();
   document.addEventListener('WeixinJSBridgeReady', ready);
   const context = createContext({ window, document, navigator, Event, queueMicrotask, structuredClone });
-  const { injected } = resolveAppProfileDefinition(definition);
+  const { injected } = resolveAppProfileDefinition(sdkDefinition);
   const source = readBundleText(bundle, bundle.manifest.contributions.pageRuntimes.main);
   runInContext(buildPageRuntimeRegistrationSource(injected.pageRuntime, source, '__installWechat'), context);
   const install = () => runInContext(buildPageRuntimeCallSource(JSON.stringify(injected)), context);

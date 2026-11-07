@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 const fixture = vi.hoisted(() => ({ storage: '', start: vi.fn(), stop: vi.fn() }));
 vi.mock('@mearl/daemon-core', async importOriginal => {
@@ -8,6 +9,7 @@ vi.mock('@mearl/daemon-core', async importOriginal => {
   return {
     ...original,
     keyedConfigFile: (_name: string, key: string) => join(fixture.storage, original.hashKey(key) + '.json'),
+    keyedDir: (name: string) => join(fixture.storage, name),
     keyedLogFile: (_name: string, key: string) => join(fixture.storage, original.hashKey(key) + '.log'),
     createDaemon: ({ configFile }: { configFile: string }) => ({
       running: () => original.readRecord(configFile),
@@ -39,7 +41,7 @@ it('queries and stops a registered runtime after its project directory has been 
   const runtime = record(project);
   rmSync(project, { recursive: true });
   expect(runtimeState({ projectPath: project })).toMatchObject({ projectPath: runtime.path, revision: 'ready' });
-  expect(await stopRuntime({ projectPath: project })).toEqual({ stopped: true, projectPath: runtime.path });
+  expect(await stopRuntime({ projectPath: project })).toMatchObject({ stopped: true, projectPath: runtime.path });
   expect(fixture.stop).toHaveBeenCalledWith(runtime.config);
   expect(existsSync(runtime.html)).toBe(false);
 });
@@ -71,7 +73,8 @@ it('serializes concurrent starts so both callers receive the same ready compiler
     if (readRecord(file)) return;
     starts++;
     await building;
-    writeFileSync(file, JSON.stringify({ pid: process.pid, projectPath, transport: 'native-messaging', options: { projectPath, watch: true }, revision: 'ready', url: 'file:///snapshot.html' }));
+    const url = pathToFileURL(join(fixture.storage, 'plugin-previews', 'wxa', hashKey(projectPath) + '.html')).href;
+    writeFileSync(file, JSON.stringify({ pid: process.pid, projectPath, transport: 'native-messaging', options: { projectPath, watch: true }, revision: 'ready', url }));
   });
   const first = startRuntime({ projectPath });
   await expect.poll(() => starts).toBe(1);

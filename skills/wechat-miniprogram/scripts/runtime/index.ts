@@ -1,9 +1,9 @@
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { writeFileSync, renameSync, rmSync } from 'node:fs';
-import { relative } from 'node:path';
+import { mkdirSync, writeFileSync, renameSync, rmSync } from 'node:fs';
+import { basename, dirname, join, relative } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
-  createDaemon, keyedConfigFile, keyedLogFile, readRecord, removeRecordIfPid,
+  createDaemon, keyedConfigFile, keyedDir, keyedLogFile, readRecord, removeRecordIfPid,
   tailFile, writeRecord, type DaemonRecord,
 } from '@mearl/daemon-core';
 import { runtimeOptions, runtimeProjectPaths, compilerError, type RuntimeOptions } from './project.js';
@@ -29,7 +29,7 @@ export interface RuntimeRecord extends DaemonRecord {
 function manager(projectPath: string, options?: RuntimeOptions) {
   const configFile = keyedConfigFile('wechat', projectPath);
   const logFile = keyedLogFile('wechat', projectPath);
-  const snapshotFile = configFile.replace(/\.json$/, '.html');
+  const snapshotFile = join(keyedDir('plugin-previews'), 'wxa', basename(configFile, '.json') + '.html');
   const daemon = createDaemon({
     name: 'WeChat mini-program compiler',
     scriptPath: fileURLToPath(new URL('./runtime.mjs', import.meta.url)),
@@ -54,12 +54,16 @@ function registeredRuntime(projectPath: unknown) {
 
 export async function startRuntime(input: Record<string, unknown>) {
   const options = runtimeOptions(input);
-  const { daemon, configFile, logFile } = manager(options.projectPath, options);
+  const { daemon, configFile, logFile, snapshotFile } = manager(options.projectPath, options);
   const release = await acquireLock(`${configFile}.lifecycle.lock`, LIFECYCLE_TIMEOUT_MS, 'the mini-program compiler');
   try {
-    const previous = daemon.running() as RuntimeRecord | null;
+    let previous = daemon.running() as RuntimeRecord | null;
     if (previous && (previous.transport !== 'native-messaging' || JSON.stringify(previous.options) !== JSON.stringify(options))) {
       throw new Error('This project is running with different runtime options. Stop it before restarting.');
+    }
+    if (previous?.url && fileURLToPath(previous.url) !== snapshotFile) {
+      await daemon.stop();
+      previous = null;
     }
     const deadline = Date.now() + READY_TIMEOUT_MS;
     await daemon.start();
@@ -90,7 +94,8 @@ export async function stopRuntime(input: Record<string, unknown>) {
     await daemon.stop();
     if (daemon.running()) throw new Error('Mini-program compiler is still stopping');
     rmSync(snapshotFile, { force: true });
-    return { stopped: true, projectPath };
+    rmSync(configFile.replace(/\.json$/, '.html'), { force: true });
+    return { stopped: true, projectPath, previewUrl: pathToFileURL(snapshotFile).href };
   } finally {
     release();
   }
@@ -102,6 +107,7 @@ export async function serveRuntime(input: Record<string, unknown>) {
   const { configFile, snapshotFile } = manager(options.projectPath);
   const { createSnapshotBuilder } = await import('./snapshot.js');
   const compiler = await createSnapshotBuilder(options);
+  mkdirSync(dirname(snapshotFile), { recursive: true, mode: 0o700 });
   let record: RuntimeRecord = { pid: process.pid, startedAt: new Date().toISOString(), transport: 'native-messaging', projectPath: options.projectPath, options };
   const publish = async () => {
     const revision = randomUUID();

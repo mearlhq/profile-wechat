@@ -809,8 +809,8 @@ import { readFileSync as readFileSync8 } from "node:fs";
 // skills/wechat-miniprogram/scripts/runtime/index.ts
 init_dist();
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { writeFileSync as writeFileSync3, renameSync as renameSync3, rmSync as rmSync4 } from "node:fs";
-import { relative } from "node:path";
+import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync3, renameSync as renameSync3, rmSync as rmSync4 } from "node:fs";
+import { basename as basename2, dirname as dirname4, join as join6, relative } from "node:path";
 import { randomUUID as randomUUID3 } from "node:crypto";
 
 // skills/wechat-miniprogram/scripts/runtime/project.ts
@@ -867,7 +867,7 @@ function runtimeOptions(input) {
 }
 function compilerError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return new Error(/(?:-86|bad cpu type|exec format error)/i.test(message) ? "The WeChat compiler cannot run on this CPU. On Apple Silicon, use executable WXA_WCC/WXA_WCSC compilers or install Rosetta for the bundled Intel compilers.\n" + message : message);
+  return new Error(/(?:-86|bad cpu type|exec format error)/i.test(message) ? "The selected WeChat compiler cannot run on this CPU. On Apple Silicon, wxa-runner can reuse compatible compilers from WeChat DevTools. Set WXA_DEVTOOLS_PATH if DevTools is installed outside the default location, or set WXA_WCC and WXA_WCSC to an executable pair. The npm fallback for macOS uses Intel binaries and requires Rosetta.\n" + message : message);
 }
 
 // skills/wechat-miniprogram/scripts/runtime/index.ts
@@ -909,7 +909,7 @@ var LIFECYCLE_TIMEOUT_MS = 45e3;
 function manager(projectPath, options) {
   const configFile = keyedConfigFile("wechat", projectPath);
   const logFile = keyedLogFile("wechat", projectPath);
-  const snapshotFile = configFile.replace(/\.json$/, ".html");
+  const snapshotFile = join6(keyedDir("plugin-previews"), "wxa", basename2(configFile, ".json") + ".html");
   const daemon = createDaemon({
     name: "WeChat mini-program compiler",
     scriptPath: fileURLToPath(new URL("./runtime.mjs", import.meta.url)),
@@ -934,12 +934,16 @@ function registeredRuntime(projectPath) {
 }
 async function startRuntime(input) {
   const options = runtimeOptions(input);
-  const { daemon, configFile, logFile } = manager(options.projectPath, options);
+  const { daemon, configFile, logFile, snapshotFile } = manager(options.projectPath, options);
   const release = await acquireLock(`${configFile}.lifecycle.lock`, LIFECYCLE_TIMEOUT_MS, "the mini-program compiler");
   try {
-    const previous = daemon.running();
+    let previous = daemon.running();
     if (previous && (previous.transport !== "native-messaging" || JSON.stringify(previous.options) !== JSON.stringify(options))) {
       throw new Error("This project is running with different runtime options. Stop it before restarting.");
+    }
+    if (previous?.url && fileURLToPath(previous.url) !== snapshotFile) {
+      await daemon.stop();
+      previous = null;
     }
     const deadline = Date.now() + READY_TIMEOUT_MS;
     await daemon.start();
@@ -969,7 +973,8 @@ async function stopRuntime(input) {
     await daemon.stop();
     if (daemon.running()) throw new Error("Mini-program compiler is still stopping");
     rmSync4(snapshotFile, { force: true });
-    return { stopped: true, projectPath };
+    rmSync4(configFile.replace(/\.json$/, ".html"), { force: true });
+    return { stopped: true, projectPath, previewUrl: pathToFileURL(snapshotFile).href };
   } finally {
     release();
   }
@@ -979,6 +984,7 @@ async function serveRuntime(input) {
   const { configFile, snapshotFile } = manager(options.projectPath);
   const { createSnapshotBuilder: createSnapshotBuilder2 } = await Promise.resolve().then(() => (init_snapshot(), snapshot_exports));
   const compiler = await createSnapshotBuilder2(options);
+  mkdirSync2(dirname4(snapshotFile), { recursive: true, mode: 448 });
   let record = { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString(), transport: "native-messaging", projectPath: options.projectPath, options };
   const publish = async () => {
     const revision = randomUUID3();
@@ -1045,26 +1051,26 @@ async function serveRuntime(input) {
 }
 
 // skills/wechat-miniprogram/scripts/runtime/check.ts
-import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync4, mkdtempSync, readdirSync as readdirSync5, readFileSync as readFileSync7, rmSync as rmSync5 } from "node:fs";
+import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync4, mkdtempSync, readdirSync as readdirSync5, readFileSync as readFileSync7, rmSync as rmSync5 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join6 } from "node:path";
+import { join as join7 } from "node:path";
 import { AppBuilder as AppBuilder2, MiniProgram as MiniProgram2, findRuntimeDir as findRuntimeDir2 } from "@open-wxa/wxa-runner-core";
 import { resolveBaseLib as resolveBaseLib2 } from "@open-wxa/wxa-runner-extractor";
 async function checkRuntime() {
   const baseLib = resolveBaseLib2();
-  for (const file of readdirSync5(baseLib.dir).filter((file2) => file2.endsWith(".js"))) readFileSync7(join6(baseLib.dir, file));
+  for (const file of readdirSync5(baseLib.dir).filter((file2) => file2.endsWith(".js"))) readFileSync7(join7(baseLib.dir, file));
   findRuntimeDir2();
-  const directory = mkdtempSync(join6(tmpdir(), "mearl-wechat-check-"));
+  const directory = mkdtempSync(join7(tmpdir(), "mearl-wechat-check-"));
   let builder;
   try {
-    mkdirSync2(join6(directory, "pages/index"), { recursive: true });
+    mkdirSync3(join7(directory, "pages/index"), { recursive: true });
     for (const [file, content] of Object.entries({
       "app.json": JSON.stringify({ pages: ["pages/index/index"] }),
       "app.js": "App({})",
       "pages/index/index.js": "Page({})",
       "pages/index/index.wxml": "<view>ready</view>",
       "pages/index/index.wxss": "view{color:#333}"
-    })) writeFileSync4(join6(directory, file), content);
+    })) writeFileSync4(join7(directory, file), content);
     builder = new AppBuilder2(new MiniProgram2(directory));
     await builder.build();
     return { ready: true, baseLibVersion: baseLib.version, nodeVersion: process.versions.node };

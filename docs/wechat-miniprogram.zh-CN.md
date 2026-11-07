@@ -2,13 +2,13 @@
 
 [English](./wechat-miniprogram.md) | 简体中文
 
-`wechat-miniprogram` Skill 使用 wxa-runner 0.12.3 运行原生小程序与已编译的 `mp-weixin` 产物，自带运行脚本和浏览器资源。[微信 H5 档案](../README.zh-CN.md)可单独安装。
+`wechat-miniprogram` Skill 使用 wxa-runner 0.13.0 运行原生小程序与已编译的 `mp-weixin` 产物，自带运行脚本和浏览器资源。原有微信 H5/WebView 档案可以独立使用。
 
 ## 安装
 
 通过 Mearl 的 Skill 安装器安装。安装钩子自动准备第三方依赖及基础库，再用临时项目验证编译器，通过后才注册。首次使用也会自动补齐缺失的依赖和运行资源，无需全局安装 CLI 或配置 PATH。
 
-依赖及可执行运行资源按内容存放在 `~/.mearl/wechat-runtime/` 缓存中，CLI、工具箱和目录页模拟共用同一流程。并发安装串行，失败可重试；注销 Skill 后保留缓存供复用。系统编译器兼容性与浏览器文件权限要求见下文。
+依赖及可执行运行资源按内容存放在 `~/.mearl/wechat-runtime/` 缓存中，CLI 和工具箱共用同一流程。并发安装串行，失败可重试。注销 Skill 后保留缓存供复用。系统编译器兼容性与浏览器文件权限要求见下文。
 
 ## 本地开发
 
@@ -21,23 +21,17 @@ npx @mearl/setup@3.0.0 plugin "$PWD/skills/wechat-miniprogram"
 mearl wxa start /path/to/project
 ```
 
-运行源码位于 Skill 的 `scripts/`，根目录构建在 Skill 内生成自包含的运行脚本和浏览器资源。使用 `pnpm check:generated` 检查生成结果。
+运行源码位于 Skill 的 `scripts/`。根目录构建在 Skill 内生成自包含的运行脚本和浏览器资源。使用 `pnpm check:generated` 检查生成结果。
 
-可以在工具箱的“微信小程序”中选择本地目录。也可以在 Chrome 中打开
-`file:///.../项目目录/`，然后在 Mearl 现有端模拟入口开启“微信”。原标签页会进入小程序，
-关闭微信模拟则回到目录页。使用目录页时，需要允许扩展访问文件 URL。微信会自动识别模式：
-普通网页及不含小程序产物的目录使用 H5 模拟，包含 `app.json` 或标准编译产物的目录启动小程序；
-损坏的小程序工程会报告错误，不回退成 H5。设备设置旁会显示当前模式，两种模式都保留机型选择。
-未安装可选 Skill 时，目录页保留普通 H5 模拟能力；已安装 Skill 会自动准备缺失的运行包。
-小程序的机型选择会更新屏幕尺寸、像素比、安全区、型号与系统信息，作用于运行器及 `wx.getSystemInfo`；
-小程序与 H5 端模拟统一使用无手机外框的视口。系统栏、灵动岛/刘海外观和 iPhone Duo 侧栏布局
-复用 Mearl 的 H5 机型配置与共享组件；Duo 的内容、导航、菜单坐标及窗口宽度避让系统侧栏。
-标题、返回按钮和菜单胶囊采用微信小程序导航样式；隐藏手机边框和运行器调试条，保留原生 tabBar 导航功能。
-横竖屏和适应窗口复用 Mearl 的设备模拟，自适应机型铺满浏览器视口。
-切换机型会刷新原标签页，保留页面路径与参数，并复用现有编译结果。小程序模式目前不提供手机壳开关。
+在工具箱的“微信小程序”中选择项目目录，或运行 `mearl wxa start <项目路径>`。微信 H5 使用独立的 App 档案。
 
-Skill 只公开 `start` 和 `stop`，用于管理编译与本地进程。页面操作、截图和测试 API 调用使用
-Mearl 现有浏览器命令。工具箱状态查询属于界面内部操作。
+通过 `device` 选择机型，`orientation` 选择横竖屏。再次启动同一项目并传入机型时，复用编译结果和原标签页。可用 `path` 指定要打开的页面。
+
+```bash
+mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/project","device":"pixel-11","orientation":"landscape"}}'
+```
+
+小程序运行页复用 Mearl 设备配置与系统栏组件。机型影响浏览器视口以及 `wx.getSystemInfo` 返回的尺寸、像素比、型号和系统信息。页面操作、截图和测试 API 使用现有浏览器命令。
 
 uni-app 和 Taro 项目请先执行框架的微信小程序构建。启动器会识别 `dist/dev/mp-weixin`、
 `unpackage/dist/dev/mp-weixin` 和 `dist`，但不会执行项目的构建脚本。存在多个候选时，显式选择产物目录。
@@ -59,9 +53,7 @@ mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/mp-weix
 ### 运行行为
 
 运行时不启动 HTTP 服务，也不监听网络端口。每个规范化项目目录复用一个编译进程，向
-`~/.mearl/wechat/` 写入自包含 HTML 运行页，由浏览器通过 `file://` 打开。编译后的模板、模块、
-静态资源和基础库通过页内虚拟资源映射加载。扩展的隔离脚本通过 Native Messaging 转发网络请求、
-查询编译状态；页面代码不能访问扩展 API。
+`~/.mearl/plugin-previews/wxa/` 写入自包含 HTML 运行页，由浏览器通过 `file://` 打开。编译后的模板、模块、静态资源和基础库通过页内虚拟资源映射加载。Skill 通过 Mearl 页面运行时转发网络请求并查询编译状态。运行页可使用扩展或纯 CDP。
 
 保存项目文件后会重新编译并刷新原标签页，保留当前页面路径与参数；页面内存数据和 API Mock 重置，
 小程序浏览器存储保留。编译错误会叠加显示在上次成功的页面上，修复后自动恢复。
@@ -73,21 +65,18 @@ mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/mp-weix
 ## 环境要求与能力边界
 
 - 安装后的 Skill 脚本需要 Node.js >= 20.18.0。
-- 浏览器与运行进程需要共享本地文件系统。需要允许扩展访问文件 URL，并授予文件 URL 的宿主权限。
-  远端浏览器需要在其自己的文件系统中运行编译进程。
-- 微信编译器必须能在宿主执行。内置 macOS 编译器是 Intel 二进制文件；Apple Silicon 需要
-  Rosetta，或通过 `WXA_WCC`、`WXA_WCSC` 指定可以执行的编译器。本能力不安装系统组件。
-  编译器环境变量必须存在于启动运行进程的环境中。
+- 浏览器与运行进程需要共享本地文件系统。使用扩展时，需要允许文件 URL 访问、授予文件 URL 宿主权限，并启用用户脚本。
+- wxa-runner 依次查找显式指定的 `WXA_WCC` 和 `WXA_WCSC`、已安装的微信开发者工具，以及 npm 随包编译器。开发者工具不在默认位置时可设置 `WXA_DEVTOOLS_PATH`。npm 随包的 macOS 编译器只有 Intel 版本，在 Apple Silicon 上需要 Rosetta。也可复用开发者工具里的兼容编译器或显式指定可执行的编译器对。见[上游编译器配置](https://open-wxa.github.io/wxa-runner/cli#环境变量)。
 - 不负责从 TypeScript 或框架组件编译源代码。输入应为原生小程序代码或框架编译产物。
 - 登录、支付和硬件能力是模拟行为。启动器不获取开发者凭据，也不提供真机、上传或发布能力。
-- `wx.request` 通过 Native Messaging 和 Node fetch 转发，不会自动共享浏览器 Cookie 和请求规则。
+- `wx.request` 通过插件页面运行时和 Node fetch 转发，不会自动共享浏览器 Cookie 和请求规则。
   使用运行器 setup 文件，或通过 `page_eval` 调用测试 API。
 - 网络请求体和响应体各自默认支持 128 MiB。在 Native Host 的运行环境中设置
   `MEARL_WECHAT_NETWORK_MAX_BYTES` 可调整到 256 KiB–2 GiB。上传不超过 128 KiB 且响应不超过
   256 KiB 时只需一次桥接调用；大数据按上传 128 KiB、下载 256 KiB 分块传输。
   Native 进程将数据暂存到 `~/.mearl/wechat-network/` 的私有文件，
   控制传输内存占用。响应下载到磁盘后才交给页面，不提供实时 SSE 或增量网络事件。
-  取消、导航及关闭标签页会释放暂存数据；闲置五分钟的传输过期，由编译进程每分钟及新传输开始时清理。
+  取消会请求释放暂存数据。导航或关闭标签页后，未完成清理的传输在闲置五分钟后过期，由编译进程或下一次传输回收。
   HTTP 转发超时为 120 秒，小程序自身设置的更短请求超时仍然生效。
 - 输入框使用 `page_snapshot` 新返回的跨 frame 元素引用。页面状态在运行器主 frame 中读取；
   点击操作需要定位当前页面的渲染 frame。

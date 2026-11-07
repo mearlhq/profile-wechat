@@ -1,5 +1,6 @@
 {
   "name": "wechat-profile/h5",
+  "defaultAppId": "wechat",
   "label": "WeChat",
   "labels": {
     "en": "WeChat",

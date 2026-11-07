@@ -7,7 +7,7 @@
   },
   "packages": {
     "wechat-profile": {
-      "source": "./capabilities/wechat-profile/bundle.json",
+      "source": "./bundle.json",
       "targets": ["browser"]
     }
   },

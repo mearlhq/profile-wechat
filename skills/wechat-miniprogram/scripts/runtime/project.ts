@@ -74,6 +74,6 @@ export function runtimeOptions(input: Record<string, unknown>): RuntimeOptions {
 export function compilerError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   return new Error(/(?:-86|bad cpu type|exec format error)/i.test(message)
-    ? 'The WeChat compiler cannot run on this CPU. On Apple Silicon, use executable WXA_WCC/WXA_WCSC compilers or install Rosetta for the bundled Intel compilers.\n' + message
+    ? 'The selected WeChat compiler cannot run on this CPU. On Apple Silicon, wxa-runner can reuse compatible compilers from WeChat DevTools. Set WXA_DEVTOOLS_PATH if DevTools is installed outside the default location, or set WXA_WCC and WXA_WCSC to an executable pair. The npm fallback for macOS uses Intel binaries and requires Rosetta.\n' + message
     : message);
 }

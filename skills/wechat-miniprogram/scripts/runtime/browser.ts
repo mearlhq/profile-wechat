@@ -1,11 +1,10 @@
 // Browser host adapter. The official runner owns compilation, framework and page behavior.
-import { FileStore, mimeType, extname, routeApp } from '@open-wxa/wxa-runner-core/web';
+import { FileStore, mimeType, extname, routeApp, type AppInfo } from '@open-wxa/wxa-runner-core/web';
 import { browserDevice } from './browserDevice.js';
 import { installClientViewport } from './clientViewport.js';
 import { fetchNetworkRequest } from './browserNetwork.js';
 import { createNetworkRpc } from './browserBridge.js';
 import { installMiniProgramInput } from './browserInput.js';
-import { animatePage, canAnimatePage, patchPageTransitions } from './pageTransition.js';
 
 const root = window as any;
 const nativeFetch = window.fetch.bind(window);
@@ -50,7 +49,6 @@ function script(url: URL): string {
   if (!response || response.status !== 200) throw new Error(`Missing script: ${url.pathname}`);
   let code = typeof response.body === 'string' ? response.body : new TextDecoder().decode(response.body);
   if (url.pathname.startsWith('/__wxa__/runtime/')) {
-    if (url.pathname.endsWith('/host.js')) code = patchPageTransitions(code);
     // Runner bundles are IIFEs; lexical location supplies resource paths without a network origin.
     code = `(function(location,history){${code}\n})(window.__mearlWxa.location(window),window.__mearlWxa.history);`;
     if (url.pathname.endsWith('/host.js') && snapshot.setup) {
@@ -112,7 +110,21 @@ async function fetchResource(value: string | URL | Request, init: RequestInit = 
   if (/^(?:blob:|data:)/.test(request.url)) return nativeFetch(request);
   const url = new URL(request.url);
   const method = request.method;
-  if (url.pathname === '/__wxa__/app-info.json') return Response.json({ version: snapshot.build.version, appid: snapshot.appid, baseLibVersion: snapshot.baseLib.version, wxConfig: snapshot.build.wxConfig, pages: snapshot.build.pages, device: runtimeDevice.device, liveReload: false, externalServiceWorker: true, socketProxy: false, ...(snapshot.setup ? { setup: { env: snapshot.setupEnv } } : {}) });
+  if (url.pathname === '/__wxa__/app-info.json') {
+    return Response.json({
+      version: snapshot.build.version,
+      appid: snapshot.appid,
+      baseLibVersion: snapshot.baseLib.version,
+      wxConfig: snapshot.build.wxConfig,
+      pages: snapshot.build.pages,
+      device: runtimeDevice.device,
+      liveReload: false,
+      externalServiceWorker: true,
+      socketProxy: false,
+      pageTransition: true,
+      ...(snapshot.setup ? { setup: { env: snapshot.setupEnv } } : {}),
+    } satisfies AppInfo);
+  }
   const session = filesystemSession(url, method);
   if (session) return Response.json(fileOperation(session, await request.text()));
   const temporary = /^\/__wxa__\/tmp\/([^/]+)\/?$/.exec(url.pathname);
@@ -194,8 +206,6 @@ function install(win: any, path: string) {
 
 const host = {
   install,
-  animatePage,
-  canAnimatePage,
   location(win: any) { const url = virtualUrl(win.__mearlWxaPath || '/' + launch); return { origin, href: url.href, pathname: url.pathname, search: url.search, protocol: 'https:', host: url.host, reload: () => root.location.reload() }; },
   history: { replaceState(_state: unknown, _title: string, value: string) {
     const url = virtualUrl(value);

@@ -10,11 +10,11 @@ Start with a working Mearl 3.0.0 installation and its connected browser extensio
 
 ### WeChat H5
 
-Each installation has one active Preset. Switching removes capabilities managed exclusively by the previous Preset. To select the standalone WeChat Preset, run:
-
 ```sh
-npx @mearl/setup@3.0.0 preset apply https://raw.githubusercontent.com/mearlhq/wechat-profile/main/preset.json
+npx @mearl/setup@3.0.0 profile install mearlhq/wechat-profile
 ```
+
+You can also enter `mearlhq/wechat-profile` under **Settings → App profiles**. Approve the source in the extension if prompted. The installation keeps the active Preset. If the Preset already defines `wechat`, the menu continues to use the Preset's implementation.
 
 Select **WeChat** in the App simulation menu. The `wechat` profile supplies an iOS or Android `MicroMessenger` user agent and the `WeixinJSBridgeReady` event. It simulates JS-SDK initialization and a Wi-Fi network type. `wx.getLocation` obtains WGS84 coordinates via browser geolocation. JS-SDK signatures are unchecked, and login, payment, and mini-program WebView navigation are outside the profile's scope.
 
@@ -24,7 +24,7 @@ To keep the capabilities of an existing Preset, merge these entries into its `pa
 {
   "packages": {
     "wechat-profile": {
-      "source": "https://raw.githubusercontent.com/mearlhq/wechat-profile/main/capabilities/wechat-profile/bundle.json",
+      "source": "https://raw.githubusercontent.com/mearlhq/wechat-profile/main/bundle.json",
       "targets": ["browser"]
     }
   },

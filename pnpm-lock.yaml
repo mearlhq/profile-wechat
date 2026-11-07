@@ -24,11 +24,11 @@ importers:
         specifier: 0.1.0
         version: 0.1.0
       '@open-wxa/wxa-runner-core':
-        specifier: 0.12.3
-        version: 0.12.3
+        specifier: 0.13.0
+        version: 0.13.0
       '@open-wxa/wxa-runner-extractor':
-        specifier: 0.12.3
-        version: 0.12.3
+        specifier: 0.13.0
+        version: 0.13.0
       '@types/node':
         specifier: ^24.9.1
         version: 24.19.2
@@ -222,16 +222,16 @@ packages:
   '@open-wxa/wxa-baselib@0.1.0':
     resolution: {integrity: sha512-mt2Nsd3mt7mXh3GhpSQzTHvzi6l++Xhwdd7CH9PJJv3yTh4QXC8y9+E2QkL5URO76RToLahACRwCmrgmMYQsaA==}
 
-  '@open-wxa/wxa-runner-compiler@0.12.3':
-    resolution: {integrity: sha512-hkunYL2qY3DE0dJmPxPbBIe1VBvZoh3CaJSP0AXweL7FD0Nn/j5tPAECANr5VwAqH7VX9JdJILrtud7KH/4z7g==}
+  '@open-wxa/wxa-runner-compiler@0.13.0':
+    resolution: {integrity: sha512-NHOf8p5j59RhC4SrbQqTs/EYLjmPfFjGWL1buc+SSyHZTgKvviG0dWpNtIyNYnvZWaBUKMVFEEd2TliqyaYr6Q==}
     engines: {node: '>=18'}
 
-  '@open-wxa/wxa-runner-core@0.12.3':
-    resolution: {integrity: sha512-pLN7TCTGtbwBzOmSMTWjaHdrucSryPlowz9f/70gI+u/w71JhU5/eSx18kzQg+mJfuwmGycQTuXTXIEkzvOjeQ==}
+  '@open-wxa/wxa-runner-core@0.13.0':
+    resolution: {integrity: sha512-YvVUph41/dhuARnybHa24JzB4x/L6kLeq1mZQqATjmd5eBXUZ9honGoK4IYFu2+1ZluvBa/K1LtACzxL/kihHg==}
     engines: {node: '>=18'}
 
-  '@open-wxa/wxa-runner-extractor@0.12.3':
-    resolution: {integrity: sha512-fFXHMli52FWIfBkrKhPyLB8sZoMLeXyVHw/v8F7uPFGwHTs0SEUUXnDdHGaaQqUG2VmSN8C6ckHMHaxbwWxDEw==}
+  '@open-wxa/wxa-runner-extractor@0.13.0':
+    resolution: {integrity: sha512-8W9Dz5LfcLpA9XqW8YRUJDm5LX/KG7s/M7ngjZ0KNrkXu+7WIjzHvXkB1XWMYHkK+GatcslUYMP2OPoDK/cvzQ==}
     engines: {node: '>=18'}
 
   '@oxc-project/types@0.156.0':
@@ -1299,16 +1299,16 @@ snapshots:
 
   '@open-wxa/wxa-baselib@0.1.0': {}
 
-  '@open-wxa/wxa-runner-compiler@0.12.3':
+  '@open-wxa/wxa-runner-compiler@0.13.0':
     dependencies:
-      '@open-wxa/wxa-runner-extractor': 0.12.3
+      '@open-wxa/wxa-runner-extractor': 0.13.0
     optionalDependencies:
       miniprogram-compiler: 0.2.3
 
-  '@open-wxa/wxa-runner-core@0.12.3':
+  '@open-wxa/wxa-runner-core@0.13.0':
     dependencies:
-      '@open-wxa/wxa-runner-compiler': 0.12.3
-      '@open-wxa/wxa-runner-extractor': 0.12.3
+      '@open-wxa/wxa-runner-compiler': 0.13.0
+      '@open-wxa/wxa-runner-extractor': 0.13.0
       chokidar: 3.6.0
       esbuild: 0.28.2
       express: 4.22.3
@@ -1320,7 +1320,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@open-wxa/wxa-runner-extractor@0.12.3':
+  '@open-wxa/wxa-runner-extractor@0.13.0':
     optionalDependencies:
       '@open-wxa/wxa-baselib': 0.1.0
 

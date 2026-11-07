@@ -5,8 +5,10 @@ const root = new URL('../', import.meta.url);
 const preset = JSON.parse(await readFile(new URL('preset.json', root), 'utf8'));
 const packageId = 'wechat-profile';
 const bundleUrl = new URL(preset.packages[packageId].source, root);
-const runtimeUrl = new URL('runtime.cjs', bundleUrl);
-const profileUrl = new URL('wechat.json', bundleUrl);
+const runtimePath = 'capabilities/wechat-profile/runtime.cjs';
+const profilePath = 'capabilities/wechat-profile/wechat.json';
+const runtimeUrl = new URL(runtimePath, root);
+const profileUrl = new URL(profilePath, root);
 
 function resource(bytes) {
   return { sha256: createHash('sha256').update(bytes).digest('hex'), byteLength: bytes.length };
@@ -19,6 +21,7 @@ function jsonBytes(value) {
 const runtime = resource(await readFile(runtimeUrl));
 const profile = jsonBytes({
   name: preset.appProfiles.wechat,
+  defaultAppId: 'wechat',
   label: 'WeChat',
   labels: { en: 'WeChat', zh_CN: '微信' },
   appName: 'wechat',
@@ -56,8 +59,8 @@ const bundle = jsonBytes({
   id: packageId,
   version: preset.version,
   requires: preset.requires,
-  resources: { 'wechat.json': resource(profile), 'runtime.cjs': runtime },
-  contributions: { appProfiles: ['wechat.json'], pageRuntimes: { main: 'runtime.cjs' } },
+  resources: { [profilePath]: resource(profile), [runtimePath]: runtime },
+  contributions: { appProfiles: [profilePath], pageRuntimes: { main: runtimePath } },
 });
 
 for (const [url, bytes] of [[profileUrl, profile], [bundleUrl, bundle]]) {

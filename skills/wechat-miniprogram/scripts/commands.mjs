@@ -66,8 +66,10 @@ export function createCommands(app, runRuntime = (command, input, signal) => run
     return { tabId, ...state, businessFrameId: business?.frameId ?? null, healthy: state.errors.length === 0 };
   };
   const launch = async (command, input, context) => {
-    fields(input, ['projectPath', 'watch', 'setup', 'path']);
-    const { path, ...options } = input;
+    fields(input, ['projectPath', 'watch', 'setup', 'path', 'device', 'orientation']);
+    const { path, device, orientation, ...options } = input;
+    if (device !== undefined && (typeof device !== 'string' || !/^[a-z0-9-]+$/.test(device))) throw new Error('Invalid device preset');
+    if (orientation !== undefined && (!device || !['portrait', 'landscape'].includes(orientation))) throw new Error('Orientation requires a device preset');
     if (options.projectPath !== undefined) options.projectPath = localProjectPath(options.projectPath);
     const initialPage = path === undefined ? undefined : pageUrl(path);
     app.progress('正在编译并启动微信小程序…');
@@ -76,6 +78,10 @@ export function createCommands(app, runRuntime = (command, input, signal) => run
     if (url.protocol !== 'file:') throw new Error('Invalid mini-program browser runtime URL');
     url.searchParams.set('project', runtime.projectPath);
     url.searchParams.set('source', pathToFileURL(runtime.projectPath.replace(/\/$/, '') + '/').href);
+    const preview = new URL(url);
+    preview.search = '';
+    preview.hash = '';
+    if (device) url.searchParams.set('deviceSelection', JSON.stringify({ preset: device, orientation }));
     if (initialPage) {
       const [pagePath, query = ''] = initialPage.split(/\?(.*)/s);
       if (!runtime.pages.includes(pagePath)) throw new Error(`Page is not declared in app.json: ${pagePath}`);
@@ -86,7 +92,16 @@ export function createCommands(app, runRuntime = (command, input, signal) => run
     const opened = await app.invoke('tab_open', {
       url: url.href, reuse: 'prefer', match: { ignoreSearch: true, ignoreHash: true, onMultiple: 'first' }, active: true,
     });
-    if (opened.reused && initialPage) {
+    if (device) {
+      await app.invoke('set_device_emulation', { tabId: opened.tabId, enabled: true, preset: device, orientation, deviceShell: false });
+      if (opened.reused) {
+        if (!initialPage && opened.url) url.hash = new URL(opened.url).hash;
+        if (opened.url !== url.href) await app.invoke('page_navigate', { tabId: opened.tabId, url: url.href });
+      }
+    }
+    await app.page('attach', { tabId: opened.tabId, frame: 'main' });
+    await app.page('activation', { enabled: true, frame: 'main', matchPatch: { add: [preview.href] } });
+    if (opened.reused && initialPage && !device) {
       const result = await api(opened.tabId, 'reLaunch', ['/' + initialPage]);
       if (result.errMsg && !result.errMsg.endsWith(':ok')) throw new Error(result.errMsg);
     }
@@ -111,7 +126,19 @@ export function createCommands(app, runRuntime = (command, input, signal) => run
     },
     async stop(input, context) {
       fields(input, ['projectPath']);
-      return runRuntime('stop', input, context?.signal);
+      const { previewUrl, ...result } = await runRuntime('stop', input, context?.signal);
+      if (previewUrl) {
+        // The compiler can also be stopped when its browser is disconnected.
+        try {
+          await app.page('activation', { enabled: true, frame: 'main', matchPatch: { remove: [previewUrl] } });
+          const { instances } = await app.page('list');
+          for (const instance of instances) {
+            if (instance.state === 'active' && instance.target.url.startsWith('file:') && fileURLToPath(instance.target.url) === fileURLToPath(previewUrl))
+              await app.page('detach', { instanceId: instance.instanceId });
+          }
+        } catch (error) { app.progress(`已停止编译器。浏览器预览清理未完成：${error.message}`); }
+      }
+      return result;
     },
     status,
   };

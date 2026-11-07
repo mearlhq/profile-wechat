@@ -37,9 +37,10 @@ function fixture() {
     if (action === 'get_versions') return { extensionId: 'a'.repeat(32) };
     return { action: { success: true } };
   });
-  const app = { invoke, progress: vi.fn() };
+  const page = vi.fn();
+  const app = { invoke, page, progress: vi.fn() };
   const runtime = vi.fn(async () => ({ transport: 'native-messaging', url: 'file:///home/test/.mearl/wechat/0123456789abcdef.html', projectPath: '/project', pages: ['pages/index/index', 'pages/detail/index'] }));
-  return { commands: createCommands(app, runtime), invoke, runtime };
+  return { commands: createCommands(app, runtime), invoke, page, runtime };
 }
 
 describe('WeChat mini-program commands', () => {
@@ -97,17 +98,19 @@ describe('WeChat mini-program commands', () => {
   it('registers commands without starting a process or touching the browser', () => {
     const command = vi.fn();
     const toolboxCommand = vi.fn();
-    register({ command, toolboxCommand });
+    register({ command, toolboxCommand, runtimeCommand: vi.fn() });
     expect(command.mock.calls.map(([signature]) => signature)).toEqual(['start <projectPath>', 'stop <projectPath>']);
     expect(toolboxCommand.mock.calls.map(([name]) => name)).not.toContain('demo');
   });
   it('opens a project with encoded page parameters and preserves cancellation', async () => {
-    const { commands, invoke, runtime } = fixture();
+    const { commands, invoke, page, runtime } = fixture();
     const signal = new AbortController().signal;
     const result = await commands.start({ projectPath: '/project', path: 'pages/detail/index?id=a%26b', watch: false }, { signal });
     expect(runtime).toHaveBeenCalledWith('start', { projectPath: '/project', watch: false }, signal);
     const url = new URL(invoke.mock.calls.find(([action]) => action === 'tab_open')[1].url);
     expect(url.protocol).toBe('file:');
+    expect(page).toHaveBeenNthCalledWith(1, 'attach', { tabId: 123, frame: 'main' });
+    expect(page).toHaveBeenNthCalledWith(2, 'activation', { enabled: true, frame: 'main', matchPatch: { add: [url.origin === 'null' ? 'file://' + url.pathname : url.origin + url.pathname] } });
     const launch = new URLSearchParams(url.hash.slice(1));
     expect(launch.get('path')).toBe('pages/detail/index');
     expect(launch.get('id')).toBe('a&b');

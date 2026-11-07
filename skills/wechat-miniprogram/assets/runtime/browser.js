@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  // node_modules/.pnpm/@open-wxa+wxa-runner-core@0.12.3/node_modules/@open-wxa/wxa-runner-core/dist/web.mjs
+  // node_modules/.pnpm/@open-wxa+wxa-runner-core@0.13.0/node_modules/@open-wxa/wxa-runner-core/dist/web.mjs
   function toJs(value) {
     return JSON.stringify(value).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
   }
@@ -2297,82 +2297,6 @@ html,body{background:#fff!important;overflow:hidden!important}
     for (const type of ["mousedown", "mousemove", "mouseup"]) win.addEventListener(type, ignoreCompatibilityMouse, true);
   }
 
-  // skills/wechat-miniprogram/scripts/runtime/pageTransition.ts
-  function patchPageTransitions(code) {
-    const patches = [
-      [
-        'this.stack.push(page);\n      this.activate(page, "navigateTo");',
-        `const previous = this.currentPage();
-      this.stack.push(page);
-      this.activate(page, "navigateTo");
-      if (window.__mearlWxa.canAnimatePage(previous?.frame)) {
-        await window.__mearlWxa.animatePage(previous.frame, page.frame, "push");
-      }`
-      ],
-      [
-        'this.stack.pop(delta).forEach((page) => this.closePage(page));\n      this.activate(this.currentPage(), "navigateBack");',
-        `const leaving = this.currentPage();
-      const popped = this.stack.pop(delta);
-      const animate = popped.includes(leaving) && window.__mearlWxa.canAnimatePage(leaving.frame);
-      for (const page of popped) {
-        if (!animate || page !== leaving) this.closePage(page);
-      }
-      try {
-        const target = this.currentPage();
-        this.activate(target, "navigateBack");
-        if (animate) await window.__mearlWxa.animatePage(leaving.frame, target.frame, "pop");
-      } finally {
-        if (animate) this.closePage(leaving);
-      }`
-      ]
-    ];
-    for (const [original, replacement] of patches) {
-      if (code.split(original).length !== 2) throw new Error("Unsupported wxa-runner page transition patch");
-      code = code.replace(original, replacement);
-    }
-    return code;
-  }
-  var DURATION_MS = 300;
-  function canAnimatePage(frame) {
-    return Boolean(frame?.isConnected && !document.hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }
-  async function animatePage(previous, current, direction) {
-    const viewport2 = current.parentElement;
-    if (!viewport2 || previous.parentElement !== viewport2) return;
-    const sliding = direction === "push" ? current : previous;
-    const initialVisibility = previous.style.visibility;
-    const initialZIndex = previous.style.zIndex;
-    const initialAriaHidden = previous.getAttribute("aria-hidden");
-    const regions = [viewport2, ...viewport2.parentElement?.querySelectorAll(":scope > .wxa-navbar, :scope > .wxa-tabbar") ?? []];
-    const initialInert = regions.map((region) => region.inert);
-    let animation;
-    let timeout;
-    try {
-      for (const region of regions) region.inert = true;
-      previous.setAttribute("aria-hidden", "true");
-      previous.style.visibility = "visible";
-      if (direction === "pop") previous.style.zIndex = "2";
-      const transforms = direction === "push" ? ["translateX(100%)", "translateX(0)"] : ["translateX(0)", "translateX(100%)"];
-      animation = sliding.animate({ transform: transforms }, { duration: DURATION_MS, easing: "ease", fill: "both" });
-      await Promise.race([
-        animation.finished.catch(() => void 0),
-        new Promise((resolve) => {
-          timeout = setTimeout(resolve, DURATION_MS + 60);
-        })
-      ]);
-    } finally {
-      clearTimeout(timeout);
-      animation?.cancel();
-      previous.style.visibility = initialVisibility;
-      previous.style.zIndex = initialZIndex;
-      if (initialAriaHidden === null) previous.removeAttribute("aria-hidden");
-      else previous.setAttribute("aria-hidden", initialAriaHidden);
-      regions.forEach((region, index) => {
-        region.inert = initialInert[index];
-      });
-    }
-  }
-
   // skills/wechat-miniprogram/scripts/runtime/browser.ts
   var root = window;
   var nativeFetch = window.fetch.bind(window);
@@ -2418,7 +2342,6 @@ html,body{background:#fff!important;overflow:hidden!important}
     if (!response || response.status !== 200) throw new Error(`Missing script: ${url.pathname}`);
     let code = typeof response.body === "string" ? response.body : new TextDecoder().decode(response.body);
     if (url.pathname.startsWith("/__wxa__/runtime/")) {
-      if (url.pathname.endsWith("/host.js")) code = patchPageTransitions(code);
       code = `(function(location,history){${code}
 })(window.__mearlWxa.location(window),window.__mearlWxa.history);`;
       if (url.pathname.endsWith("/host.js") && snapshot.setup) {
@@ -2473,7 +2396,21 @@ html,body{background:#fff!important;overflow:hidden!important}
     if (/^(?:blob:|data:)/.test(request.url)) return nativeFetch(request);
     const url = new URL(request.url);
     const method = request.method;
-    if (url.pathname === "/__wxa__/app-info.json") return Response.json({ version: snapshot.build.version, appid: snapshot.appid, baseLibVersion: snapshot.baseLib.version, wxConfig: snapshot.build.wxConfig, pages: snapshot.build.pages, device: runtimeDevice.device, liveReload: false, externalServiceWorker: true, socketProxy: false, ...snapshot.setup ? { setup: { env: snapshot.setupEnv } } : {} });
+    if (url.pathname === "/__wxa__/app-info.json") {
+      return Response.json({
+        version: snapshot.build.version,
+        appid: snapshot.appid,
+        baseLibVersion: snapshot.baseLib.version,
+        wxConfig: snapshot.build.wxConfig,
+        pages: snapshot.build.pages,
+        device: runtimeDevice.device,
+        liveReload: false,
+        externalServiceWorker: true,
+        socketProxy: false,
+        pageTransition: true,
+        ...snapshot.setup ? { setup: { env: snapshot.setupEnv } } : {}
+      });
+    }
     const session = filesystemSession(url, method);
     if (session) return Response.json(fileOperation(session, await request.text()));
     const temporary = /^\/__wxa__\/tmp\/([^/]+)\/?$/.exec(url.pathname);
@@ -2587,8 +2524,6 @@ html,body{background:#fff!important;overflow:hidden!important}
   }
   var host = {
     install,
-    animatePage,
-    canAnimatePage,
     location(win) {
       const url = virtualUrl(win.__mearlWxaPath || "/" + launch);
       return { origin, href: url.href, pathname: url.pathname, search: url.search, protocol: "https:", host: url.host, reload: () => root.location.reload() };
