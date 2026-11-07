@@ -8,22 +8,38 @@
 
 需要已安装 Mearl 3.0.0，并连接配套浏览器扩展。
 
+### 微信 H5
+
+每套安装只有一个生效的 Preset。切换时，旧 Preset 独有的能力会从当前环境移除。如需切换到独立的微信 Preset，执行：
+
 ```sh
-git clone https://github.com/mearlhq/wechat-profile.git
-cd wechat-profile
-npx @mearl/setup@3.0.0 preset apply ./preset.json
+npx @mearl/setup@3.0.0 preset apply https://raw.githubusercontent.com/mearlhq/wechat-profile/main/preset.json
 ```
 
 在 App 模拟菜单中选择 **微信**。`wechat` 档案提供 iOS 或 Android 的 `MicroMessenger` UA 和 `WeixinJSBridgeReady` 事件，模拟 JS-SDK 初始化及 Wi-Fi 网络类型。`wx.getLocation` 通过浏览器定位获取 WGS84 坐标。档案不校验 JS-SDK 签名，登录、支付和小程序 WebView 导航也不在能力范围内。
 
-应用 Preset 会为当前安装选用该 Preset。若要沿用已有 Preset，请在其中添加 `wechat-profile` 浏览器能力包，并将 App 别名映射到 `wechat-profile/h5`。
+若要保留已有 Preset 的能力，请将以下条目合并到原 Preset 的 `packages` 和 `appProfiles`，或加到继承它的 Preset 中。已有的 `wechat` 别名会改为指向这里选择的实现。
+
+```json
+{
+  "packages": {
+    "wechat-profile": {
+      "source": "https://raw.githubusercontent.com/mearlhq/wechat-profile/main/capabilities/wechat-profile/bundle.json",
+      "targets": ["browser"]
+    }
+  },
+  "appProfiles": {
+    "wechat": "wechat-profile/h5"
+  }
+}
+```
 
 ### 运行本地小程序
 
-在浏览器所在机器上注册 Skill，并为配套的 Mearl 扩展允许文件网址访问。Skill 将原生小程序和已编译的 `mp-weixin` 产物作为自包含的 `file://` 预览打开，由扩展转发请求并查询编译状态。
+在浏览器所在机器上安装 Skill，并为配套的 Mearl 扩展允许文件网址访问。Skill 将原生小程序和已编译的 `mp-weixin` 产物作为自包含的 `file://` 预览打开。安装 Skill 独立于当前选用的 Preset。
 
 ```sh
-npx @mearl/setup@3.0.0 plugin "$PWD/skills/wechat-miniprogram"
+npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/wechat-profile --skill wechat-miniprogram --yes
 mearl wxa start /path/to/project
 ```
 
