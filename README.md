@@ -14,7 +14,7 @@ Start with a working Mearl 3.0.0 installation and its connected browser extensio
 npx @mearl/setup@3.0.0 profile install mearlhq/wechat-profile
 ```
 
-You can also enter `mearlhq/wechat-profile` under **Settings → App profiles**. Approve the source in the extension if prompted. The installation keeps the active Preset. If the Preset already defines `wechat`, the menu continues to use the Preset's implementation.
+In the extension's quick settings, open the App selector and choose **Add App profiles**. If the list is empty, click the App button to open the installer. Select **WeChat** or enter `mearlhq/wechat-profile`, then approve the source if prompted. The installation keeps the active Preset. If the Preset already defines `wechat`, the menu continues to use the Preset's implementation.
 
 Select **WeChat** in the App simulation menu. The `wechat` profile supplies an iOS or Android `MicroMessenger` user agent and the `WeixinJSBridgeReady` event. It simulates JS-SDK initialization and a Wi-Fi network type. `wx.getLocation` obtains WGS84 coordinates via browser geolocation. JS-SDK signatures are unchecked, and login, payment, and mini-program WebView navigation are outside the profile's scope.
 

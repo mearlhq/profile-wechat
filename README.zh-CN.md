@@ -14,7 +14,7 @@
 npx @mearl/setup@3.0.0 profile install mearlhq/wechat-profile
 ```
 
-也可以在「设置 → App 档案」输入 `mearlhq/wechat-profile`。若扩展提示授权，请确认来源。安装会保留当前 Preset。如果 Preset 已定义 `wechat`，菜单继续使用 Preset 选定的实现。
+也可以在扩展快捷设置的客户端下拉菜单中选择「添加 App 档案」。列表为空时，点击「客户端」可直接打开安装弹窗。选择「微信」或输入 `mearlhq/wechat-profile`，若扩展提示授权，请确认来源。安装会保留当前 Preset。如果 Preset 已定义 `wechat`，菜单继续使用 Preset 选定的实现。
 
 在 App 模拟菜单中选择 **微信**。`wechat` 档案提供 iOS 或 Android 的 `MicroMessenger` UA 和 `WeixinJSBridgeReady` 事件，模拟 JS-SDK 初始化及 Wi-Fi 网络类型。`wx.getLocation` 通过浏览器定位获取 WGS84 坐标。档案不校验 JS-SDK 签名，登录、支付和小程序 WebView 导航也不在能力范围内。
 
