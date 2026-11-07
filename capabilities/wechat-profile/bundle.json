@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "wechat-profile",
+  "version": "3.0.0",
+  "requires": {
+    "mearlApi": "^1.0.0"
+  },
+  "resources": {
+    "wechat.json": {
+      "sha256": "29af342e76104ca9e206f627a4ec70d81b421149945ea65d8f2d7bad38ba1d01",
+      "byteLength": 1665
+    },
+    "runtime.cjs": {
+      "sha256": "761cefc405f76e9d5f5494e74a4e280123bd2e5d5f03931f91f94ee127509b28",
+      "byteLength": 2630
+    }
+  },
+  "contributions": {
+    "appProfiles": [
+      "wechat.json"
+    ],
+    "pageRuntimes": {
+      "main": "runtime.cjs"
+    }
+  }
+}

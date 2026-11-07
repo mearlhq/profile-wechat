@@ -1,0 +1,33 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --surface: var(--mearl-bg-primary, #fff);
+  --text: var(--mearl-text-primary, #24292e);
+  --muted: var(--mearl-text-secondary, #687078);
+  --border: var(--mearl-border, #dfe3e7);
+  --accent: var(--mearl-action-primary, #2563eb);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface); color: var(--text); font-size: .75rem; line-height: 1.5; }
+main { padding: 12px; max-width: 640px; margin: 0 auto; }
+p { margin: 0 0 10px; overflow-wrap: anywhere; }
+label { display: block; margin-bottom: 5px; font-weight: 600; }
+form > input, form > .row { margin-bottom: 12px; }
+.row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+input, button { font: inherit; min-height: 30px; border: 1px solid var(--border); border-radius: 5px; }
+input { width: 100%; min-width: 0; background: var(--surface); color: var(--text); padding: 5px 8px; }
+button { cursor: pointer; flex: none; padding: 4px 10px; background: var(--surface); color: var(--text); }
+button:hover:not(:disabled) { background: var(--mearl-bg-hover, #f0f3f5); }
+button:disabled { cursor: wait; opacity: .55; }
+input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.primary { background: var(--accent); border-color: var(--accent); color: var(--mearl-action-primary-text, #fff); }
+.primary:hover:not(:disabled) { background: var(--mearl-action-primary-hover, #1d4ed8); }
+.muted { color: var(--muted); }
+.boundary { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.spacer { flex: 1; }
+section { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+#current { margin-top: 8px; }
+#status { white-space: pre-wrap; }
+[data-error="true"] { color: var(--mearl-danger, #c62828); }
+summary { cursor: pointer; }
+pre { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--mearl-bg-secondary, #f6f7f8); padding: 8px; border-radius: 5px; }

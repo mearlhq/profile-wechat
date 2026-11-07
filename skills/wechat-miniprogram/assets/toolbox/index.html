@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>微信小程序</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main>
+    <p id="intro" class="muted">在浏览器中运行本地微信小程序</p>
+    <form id="launch">
+      <label id="directory-label" for="directory">项目或编译产物目录</label>
+      <div class="row"><input id="directory" placeholder="/path/to/project/dist/dev/mp-weixin" required /><button id="browse" type="button">选择</button></div>
+      <label id="page-label" for="page">启动页面（可选）</label>
+      <input id="page" placeholder="pages/detail/index?id=1" />
+      <p id="hint" class="muted">uni-app / Taro 项目请先编译为微信小程序。</p>
+      <div class="row"><button id="start" class="primary" type="submit">运行小程序</button></div>
+    </form>
+    <section id="running" hidden>
+      <div class="row"><strong id="running-label">正在运行</strong><span class="spacer"></span><button id="inspect" type="button">检查状态</button><button id="stop" type="button">停止</button></div>
+      <p id="current" class="muted"></p>
+      <p id="health" role="status"></p>
+      <details><summary id="details-label">页面数据与错误</summary><pre id="state"></pre></details>
+    </section>
+    <p id="status" role="status" aria-live="polite"></p>
+    <p id="boundary" class="muted boundary">本地模拟环境。登录、支付及设备能力需要 Mock 或独立验证。</p>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "wechat-profile",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": { "node": ">=22.23.4" },
+  "scripts": {
+    "build": "node scripts/build-profile.mjs && node skills/wechat-miniprogram/scripts/build-runtime.mjs",
+    "check:generated": "node scripts/build-profile.mjs --check && node skills/wechat-miniprogram/scripts/build-runtime.mjs --check",
+    "typecheck": "tsc -p skills/wechat-miniprogram/tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@mearl/app-profiles": "3.0.0-beta.10",
+    "@mearl/browser-core": "3.0.0-beta.10",
+    "@mearl/daemon-core": "3.0.0-beta.10",
+    "@mearl/preset": "3.0.0-beta.10",
+    "@open-wxa/wxa-baselib": "0.1.0",
+    "@open-wxa/wxa-runner-core": "0.12.3",
+    "@open-wxa/wxa-runner-extractor": "0.12.3",
+    "@types/node": "^24.9.1",
+    "chokidar": "3.6.0",
+    "esbuild": "0.28.2",
+    "typescript": "^5.8.3",
+    "vitest": "4.1.12"
+  },
+  "pnpm": { "onlyBuiltDependencies": ["esbuild"] }
+}

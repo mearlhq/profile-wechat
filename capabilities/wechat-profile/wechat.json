@@ -1,0 +1,62 @@
+{
+  "name": "wechat-profile/h5",
+  "label": "WeChat",
+  "labels": {
+    "en": "WeChat",
+    "zh_CN": "微信"
+  },
+  "appName": "wechat",
+  "defaultAppVersion": "8.0.58",
+  "uaTemplate": {
+    "ios": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/{v} NetType/WIFI Language/{language}",
+    "android": "Mozilla/5.0 (Linux; Android 17; {deviceModel}; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/152.0.0.0 Mobile Safari/537.36 MicroMessenger/{v} NetType/WIFI Language/{language}"
+  },
+  "policies": {
+    "languages": [
+      "zh_CN",
+      "en"
+    ],
+    "defaultLanguage": "zh_CN"
+  },
+  "pageRuntime": {
+    "id": "wechat-profile/main",
+    "sha256": "761cefc405f76e9d5f5494e74a4e280123bd2e5d5f03931f91f94ee127509b28"
+  },
+  "uaTokens": [],
+  "globals": {},
+  "bridges": [
+    {
+      "global": "WeixinJSBridge",
+      "style": "wechat"
+    },
+    {
+      "global": "wx",
+      "style": "wechat"
+    }
+  ],
+  "activeEvents": [],
+  "actions": {
+    "open": [],
+    "close": [],
+    "title": [],
+    "systemInfo": [],
+    "protocol": [],
+    "noop": [],
+    "responses": {
+      "preVerifyJSAPI": {
+        "err_msg": "preVerifyJSAPI:ok"
+      },
+      "getNetworkType": {
+        "err_msg": "network_type:wifi",
+        "subtype": "wifi"
+      }
+    }
+  },
+  "schemes": [],
+  "usage": {
+    "description": "Simulate a WeChat H5 WebView with a mobile user agent and basic JSBridge.",
+    "limitations": [
+      "SDK initialization and network type are simulated. Location uses the browser permission. Native APIs such as login and payment are unavailable."
+    ]
+  }
+}

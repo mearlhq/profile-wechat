@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "wechat",
+  "version": "3.0.0",
+  "requires": {
+    "mearlApi": "^1.0.0"
+  },
+  "packages": {
+    "wechat-profile": {
+      "source": "./capabilities/wechat-profile/bundle.json",
+      "targets": ["browser"]
+    }
+  },
+  "appProfiles": {
+    "wechat": "wechat-profile/h5"
+  }
+}
