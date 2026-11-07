@@ -40,7 +40,7 @@ Install the Skill on the browser host and allow file URL access for the matching
 
 ```sh
 npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/wechat-profile --skill wechat-miniprogram --yes
-mearl wxa start /path/to/project
+mearl wxa run /path/to/project
 ```
 
 See the [mini-program guide](docs/wechat-miniprogram.md) for compiler requirements, request mocks, and browser permissions.

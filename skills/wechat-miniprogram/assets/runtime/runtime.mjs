@@ -94,9 +94,6 @@ function keyedDir(subdir) {
 function keyedConfigFile(subdir, key) {
   return join(keyedDir(subdir), `${hashKey(key)}.json`);
 }
-function keyedLogFile(subdir, key) {
-  return join(keyedDir(subdir), `${hashKey(key)}.log`);
-}
 var DAEMON_HOME;
 var init_paths = __esm({
   "node_modules/.pnpm/@mearl+daemon-core@3.0.0-beta.10/node_modules/@mearl/daemon-core/dist/paths.js"() {
@@ -128,19 +125,6 @@ function readRecordUnlocked(file) {
 }
 function removeRecordUnlocked(file) {
   rmSync(file, { force: true });
-}
-function writeRecordUnlocked(file, record) {
-  const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    writeFileSync(tmp, JSON.stringify(record), { mode: 384 });
-    renameSync(tmp, file);
-  } catch (error) {
-    try {
-      rmSync(tmp, { force: true });
-    } catch {
-    }
-    throw error;
-  }
 }
 function removeStaleLock(lockDir) {
   const ownerFile = join2(lockDir, "owner.json");
@@ -212,25 +196,6 @@ function withRecordLock(file, operation) {
     }
   }
 }
-function writeRecord(file, record) {
-  withRecordLock(file, () => writeRecordUnlocked(file, record));
-}
-function claimRecord(file, record) {
-  return withRecordLock(file, () => {
-    const candidate = `${file}.${process.pid}.${randomUUID()}.claim`;
-    try {
-      writeFileSync(candidate, JSON.stringify(record), { mode: 384 });
-      linkSync(candidate, file);
-      return true;
-    } catch (error) {
-      if (error.code === "EEXIST")
-        return false;
-      throw error;
-    } finally {
-      rmSync(candidate, { force: true });
-    }
-  });
-}
 function readRecord(file) {
   return readRecordUnlocked(file);
 }
@@ -239,18 +204,6 @@ function removeRecordIfPid(file, pid) {
     return withRecordLock(file, () => {
       const record = readRecordUnlocked(file);
       if (record?.pid !== pid)
-        return false;
-      removeRecordUnlocked(file);
-      return true;
-    });
-  } catch {
-    return false;
-  }
-}
-function removeInvalidRecord(file) {
-  try {
-    return withRecordLock(file, () => {
-      if (!existsSync(file) || readRecordUnlocked(file))
         return false;
       removeRecordUnlocked(file);
       return true;
@@ -271,27 +224,6 @@ var init_registry = __esm({
 });
 
 // node_modules/.pnpm/@mearl+daemon-core@3.0.0-beta.10/node_modules/@mearl/daemon-core/dist/log.js
-import { existsSync as existsSync2, statSync as statSync2, renameSync as renameSync2, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync as rmSync2 } from "node:fs";
-function rotateLogIfNeeded(logFile, maxBytes = DEFAULT_MAX_LOG_BYTES) {
-  try {
-    if (!existsSync2(logFile))
-      return;
-    if (statSync2(logFile).size < maxBytes)
-      return;
-    renameSync2(logFile, `${logFile}.1`);
-  } catch {
-  }
-}
-function tailFile(logFile, lines) {
-  try {
-    if (!existsSync2(logFile))
-      return "";
-    const content = readFileSync3(logFile, "utf-8");
-    return content.split("\n").slice(-lines).join("\n").trim();
-  } catch {
-    return "";
-  }
-}
 var DEFAULT_MAX_LOG_BYTES;
 var init_log = __esm({
   "node_modules/.pnpm/@mearl+daemon-core@3.0.0-beta.10/node_modules/@mearl/daemon-core/dist/log.js"() {
@@ -300,187 +232,6 @@ var init_log = __esm({
 });
 
 // node_modules/.pnpm/@mearl+daemon-core@3.0.0-beta.10/node_modules/@mearl/daemon-core/dist/daemon.js
-import { spawn } from "node:child_process";
-import { closeSync as closeSync2, openSync as openSync2 } from "node:fs";
-import { dirname as dirname2 } from "node:path";
-function sleep(ms) {
-  return new Promise((resolve2) => setTimeout(resolve2, ms));
-}
-function createDaemon(opts) {
-  const { name, scriptPath, configFile, logFile, foregroundArgs = [], readyTimeoutMs = 15e3, formatInfo, startingRecord } = opts;
-  const tag = `[${name}]`;
-  const startLockFile = `${configFile}.start.lock`;
-  function running() {
-    const rec = readRecord(configFile);
-    return rec && isAlive(rec.pid) ? rec : null;
-  }
-  function printInfo(rec) {
-    const extra = formatInfo?.(rec);
-    if (extra)
-      console.log(extra);
-  }
-  async function start() {
-    const live = running();
-    if (live) {
-      const state = live.daemonState === "starting" ? "starting" : "running";
-      console.log(`${tag} Already ${state} (pid ${live.pid})`);
-      printInfo(live);
-      return;
-    }
-    const existingLock = readRecord(startLockFile);
-    if (existingLock && isAlive(existingLock.pid)) {
-      console.log(`${tag} Start already in progress (pid ${existingLock.pid})`);
-      return;
-    }
-    if (existingLock)
-      removeRecordIfPid(startLockFile, existingLock.pid);
-    else
-      removeInvalidRecord(startLockFile);
-    const lockPid = process.pid;
-    if (!claimRecord(startLockFile, { pid: lockPid, startedAt: (/* @__PURE__ */ new Date()).toISOString() })) {
-      const competingLock = readRecord(startLockFile);
-      if (competingLock && isAlive(competingLock.pid)) {
-        console.log(`${tag} Start already in progress (pid ${competingLock.pid})`);
-        return;
-      }
-      if (competingLock)
-        removeRecordIfPid(startLockFile, competingLock.pid);
-      else
-        removeInvalidRecord(startLockFile);
-      if (!claimRecord(startLockFile, { pid: lockPid, startedAt: (/* @__PURE__ */ new Date()).toISOString() })) {
-        const currentLock = readRecord(startLockFile);
-        if (currentLock && isAlive(currentLock.pid)) {
-          console.log(`${tag} Start already in progress (pid ${currentLock.pid})`);
-          return;
-        }
-        console.error(`${tag} Failed to acquire startup lock: ${startLockFile}`);
-        process.exitCode = 1;
-        return;
-      }
-    }
-    const stale = readRecord(configFile);
-    if (stale && !isAlive(stale.pid))
-      removeRecordIfPid(configFile, stale.pid);
-    else if (!stale)
-      removeInvalidRecord(configFile);
-    ensureDir(dirname2(configFile));
-    ensureDir(dirname2(logFile));
-    rotateLogIfNeeded(logFile);
-    const startedAt = (/* @__PURE__ */ new Date()).toISOString();
-    const logFd = openSync2(logFile, "a");
-    let child;
-    try {
-      child = spawn(process.execPath, [scriptPath, "--foreground", ...foregroundArgs], {
-        detached: true,
-        stdio: ["ignore", logFd, logFd],
-        env: process.env,
-        windowsHide: true
-      });
-    } catch (error) {
-      removeRecordIfPid(startLockFile, lockPid);
-      throw error;
-    } finally {
-      closeSync2(logFd);
-    }
-    child.unref();
-    const childPid = child.pid;
-    if (!childPid) {
-      removeRecordIfPid(startLockFile, lockPid);
-      console.error(`${tag} Failed to start: spawned process has no pid`);
-      process.exitCode = 1;
-      return;
-    }
-    writeRecord(startLockFile, { pid: childPid, startedAt });
-    claimRecord(configFile, {
-      ...startingRecord?.(childPid, startedAt) ?? { pid: childPid, startedAt },
-      daemonState: "starting"
-    });
-    removeRecordIfPid(startLockFile, childPid);
-    const deadline = Date.now() + readyTimeoutMs;
-    while (Date.now() < deadline) {
-      if (!isAlive(childPid)) {
-        removeRecordIfPid(configFile, childPid);
-        console.error(`${tag} Failed to start. Recent log:`);
-        const log = tailFile(logFile, 20);
-        if (log)
-          console.error(log);
-        console.error(`(full log: ${logFile})`);
-        process.exitCode = 1;
-        return;
-      }
-      const rec = readRecord(configFile);
-      if (rec && rec.pid === childPid && rec.daemonState !== "starting") {
-        console.log(`${tag} Started in background (pid ${childPid})`);
-        console.log(`${tag} Logs: ${logFile}`);
-        printInfo(rec);
-        return;
-      }
-      await sleep(200);
-    }
-    console.error(`${tag} Start timed out after ${Math.round(readyTimeoutMs / 1e3)}s. Check the log: ${logFile}`);
-    process.exitCode = 1;
-  }
-  async function stop(expectedPid) {
-    const rec = readRecord(configFile);
-    if (expectedPid !== void 0 && rec?.pid !== expectedPid) {
-      console.log(`${tag} Registered pid ${expectedPid} is no longer the current instance`);
-      return;
-    }
-    if (!rec || !isAlive(rec.pid)) {
-      console.log(`${tag} Not running`);
-      if (rec)
-        removeRecordIfPid(configFile, rec.pid);
-      else
-        removeInvalidRecord(configFile);
-      return;
-    }
-    const pid = rec.pid;
-    try {
-      process.kill(pid, "SIGTERM");
-    } catch (error) {
-      console.error(`${tag} Failed to stop pid ${pid}:`, error.message);
-      process.exitCode = 1;
-      return;
-    }
-    const deadline = Date.now() + 5e3;
-    while (Date.now() < deadline && isAlive(pid)) {
-      await sleep(150);
-    }
-    if (isAlive(pid)) {
-      try {
-        process.kill(pid, "SIGKILL");
-      } catch {
-      }
-    }
-    removeRecordIfPid(configFile, pid);
-    console.log(`${tag} Stopped (pid ${pid})`);
-  }
-  async function restart() {
-    await stop();
-    await start();
-  }
-  function status() {
-    const rec = running();
-    if (!rec) {
-      console.log(`${tag} Status: stopped`);
-      return;
-    }
-    console.log(`${tag} Status: ${rec.daemonState === "starting" ? "starting" : "running"}`);
-    console.log(`  pid:        ${rec.pid}`);
-    if (rec.startedAt)
-      console.log(`  started at: ${rec.startedAt}`);
-    console.log(`  log:        ${logFile}`);
-    printInfo(rec);
-  }
-  function logs(lines = 50) {
-    const log = tailFile(logFile, lines);
-    if (log)
-      console.log(log);
-    console.log(`
-(log file: ${logFile} \u2014 follow with: tail -f "${logFile}")`);
-  }
-  return { start, stop, restart, status, logs, running };
-}
 var init_daemon = __esm({
   "node_modules/.pnpm/@mearl+daemon-core@3.0.0-beta.10/node_modules/@mearl/daemon-core/dist/daemon.js"() {
     init_process();
@@ -511,6 +262,72 @@ var init_dist = __esm({
   }
 });
 
+// skills/wechat-miniprogram/scripts/runtime/snapshot.ts
+var snapshot_exports = {};
+__export(snapshot_exports, {
+  createSnapshotBuilder: () => createSnapshotBuilder
+});
+import { readFileSync as readFileSync5, readdirSync as readdirSync3 } from "node:fs";
+import { join as join4 } from "node:path";
+import { AppBuilder, MiniProgram, findRuntimeDir, findSetupFile, bundleSetup } from "@open-wxa/wxa-runner-core";
+import { resolveBaseLib, usesIsolatedContext } from "@open-wxa/wxa-runner-extractor";
+function staticFiles(root, prefix = "") {
+  return readdirSync3(join4(root, prefix), { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name.startsWith(".") || entry.name === "node_modules") return [];
+    const relative = prefix + entry.name;
+    return entry.isDirectory() ? staticFiles(root, relative + "/") : entry.isFile() ? [relative] : [];
+  });
+}
+async function createSnapshotBuilder(options) {
+  const project = new MiniProgram(options.projectPath);
+  const baseLib = resolveBaseLib();
+  const runtimeDir = findRuntimeDir();
+  const setupFile = options.setup === false ? null : options.setup || findSetupFile(project.projectPath);
+  const adapter = readFileSync5(new URL("./browser.js", import.meta.url), "utf8");
+  const libraries = {};
+  for (const [prefix, directory] of [["/__baselib__/", baseLib.dir], ["/__wxa__/runtime/", runtimeDir]]) {
+    for (const file of readdirSync3(directory)) {
+      if (file.endsWith(".js")) libraries[prefix + file] = { data: readFileSync5(join4(directory, file)).toString("base64"), type: "text/javascript" };
+    }
+  }
+  const builder = new AppBuilder(project);
+  return {
+    builder,
+    async build() {
+      const build = await builder.build();
+      if (Object.keys(project.readAppJson().plugins || {}).length) throw new Error("WeChat plugins are not supported by the local browser host yet");
+      if (build.workerModules.length) throw new Error("Mini-program Workers are not supported by the local browser host yet");
+      const resources = { ...libraries };
+      let bytes = 0;
+      for (const file of staticFiles(project.root)) {
+        if (/\.(?:js|wxml|wxs|wxss|map|ts|less|s[ac]ss)$/.test(file)) continue;
+        const data = readFileSync5(join4(project.root, file));
+        bytes += data.length;
+        if (bytes > 48 * 1024 * 1024) throw new Error("Project static assets exceed the 48 MiB browser snapshot limit");
+        resources["/" + file] = { data: data.toString("base64"), type: "" };
+      }
+      const modules = Object.fromEntries(build.modules.map((id) => [id, builder.getModuleScript(id)]));
+      let setup = null;
+      if (setupFile) {
+        const { transform } = await import("esbuild");
+        setup = (await transform(await bundleSetup(setupFile), { format: "iife", globalName: "__mearlWxaSetup", target: "chrome141" })).code;
+      }
+      const setupEnv = Object.fromEntries(Object.entries(process.env).filter(([key, value]) => key.startsWith("WXA_") && value !== void 0));
+      const snapshot = { build: { ...build, plugins: [] }, modules, resources, setup, setupEnv, appid: project.appid, baseLib: { version: baseLib.version, hasWorker: false }, isolated: usesIsolatedContext(baseLib.version) };
+      const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mearl \xB7 WeChat</title></head><body><div id="wxa-root"></div><script>window.__mearlWxaSnapshot=${escapeScript(JSON.stringify(snapshot))};
+${escapeScript(adapter)}</script></body></html>`;
+      return { html, pages: build.pages };
+    }
+  };
+}
+var escapeScript;
+var init_snapshot = __esm({
+  "skills/wechat-miniprogram/scripts/runtime/snapshot.ts"() {
+    "use strict";
+    escapeScript = (value) => value.replace(/<\/script/gi, "<\\/script");
+  }
+});
+
 // skills/wechat-miniprogram/scripts/runtime/networkProtocol.ts
 var NETWORK_CHUNK_BYTES, NETWORK_RESPONSE_CHUNK_BYTES;
 var init_networkProtocol = __esm({
@@ -530,7 +347,7 @@ __export(network_exports, {
 });
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, writeFile, rename, rm, stat, readdir, open, access } from "node:fs/promises";
-import { join as join4 } from "node:path";
+import { join as join7 } from "node:path";
 function bodyLimit() {
   const value = Number(process.env.MEARL_WECHAT_NETWORK_MAX_BYTES ?? 128 * 1024 * 1024);
   if (!Number.isSafeInteger(value) || value < NETWORK_RESPONSE_CHUNK_BYTES || value > 2 * 1024 ** 3) throw new Error("MEARL_WECHAT_NETWORK_MAX_BYTES must be between 256 KiB and 2 GiB");
@@ -562,16 +379,16 @@ var init_network = __esm({
       directory;
       path(id) {
         if (typeof id !== "string" || !ID.test(id)) throw new Error("Invalid network transfer ID");
-        return join4(this.directory, id);
+        return join7(this.directory, id);
       }
       async save(path, value) {
-        const temporary = join4(path, `meta.${process.pid}`);
+        const temporary = join7(path, `meta.${process.pid}`);
         await writeFile(temporary, JSON.stringify(value), { mode: 384 });
-        await rename(temporary, join4(path, "meta.json"));
+        await rename(temporary, join7(path, "meta.json"));
       }
       async load(path) {
-        if (await exists(join4(path, "cancel"))) throw new Error("Network transfer was cancelled");
-        const value = JSON.parse(await readFile(join4(path, "meta.json"), "utf8"));
+        if (await exists(join7(path, "cancel"))) throw new Error("Network transfer was cancelled");
+        const value = JSON.parse(await readFile(join7(path, "meta.json"), "utf8"));
         if (value.expires < Date.now()) throw new Error("Network transfer expired");
         return value;
       }
@@ -581,7 +398,7 @@ var init_network = __esm({
           if (!ID.test(id)) continue;
           const path = this.path(id);
           try {
-            if ((await stat(join4(path, "meta.json"))).mtimeMs + TTL > Date.now()) continue;
+            if ((await stat(join7(path, "meta.json"))).mtimeMs + TTL > Date.now()) continue;
           } catch {
             try {
               if ((await stat(path)).mtimeMs + TTL > Date.now()) continue;
@@ -596,9 +413,9 @@ var init_network = __esm({
       async release(id) {
         const path = this.path(id);
         if (!await exists(path)) return { released: true };
-        await writeFile(join4(path, "cancel"), "", { mode: 384 }).catch(() => {
+        await writeFile(join7(path, "cancel"), "", { mode: 384 }).catch(() => {
         });
-        if (!await exists(join4(path, "busy"))) await rm(path, { recursive: true, force: true });
+        if (!await exists(join7(path, "busy"))) await rm(path, { recursive: true, force: true });
         return { released: true };
       }
       async run(input) {
@@ -612,7 +429,7 @@ var init_network = __esm({
           await mkdir(path, { mode: 448 });
           try {
             const transfer = { url: url.href, method: String(input.method || "GET").toUpperCase(), headers: input.headers || {}, phase: "upload", uploaded: 0, expires: Date.now() + TTL, maxBytes: bodyLimit() };
-            await writeFile(join4(path, "upload"), "", { mode: 384 });
+            await writeFile(join7(path, "upload"), "", { mode: 384 });
             await this.save(path, transfer);
             if (input.stage === "begin") return { transferId: input.transferId, maxBytes: transfer.maxBytes, chunkBytes: NETWORK_CHUNK_BYTES };
             if (input.body) await this.run({ stage: "write", transferId: input.transferId, offset: 0, body: input.body });
@@ -623,7 +440,7 @@ var init_network = __esm({
           }
         }
         if (input.stage === "send") return this.send(input.transferId);
-        const lock = await open(join4(path, "busy"), "wx", 384);
+        const lock = await open(join7(path, "busy"), "wx", 384);
         try {
           const transfer = await this.load(path);
           const offset = input.offset;
@@ -633,7 +450,7 @@ var init_network = __esm({
             const bytes = Buffer.from(input.body, "base64");
             if (!bytes.length || bytes.length > NETWORK_CHUNK_BYTES || offset > transfer.uploaded) throw new Error("Invalid upload chunk offset or size");
             if (offset + bytes.length > transfer.maxBytes) throw new Error(`Request body exceeds the configured ${transfer.maxBytes} byte limit`);
-            const file2 = await open(join4(path, "upload"), "r+");
+            const file2 = await open(join7(path, "upload"), "r+");
             try {
               if (offset < transfer.uploaded) {
                 const previous = Buffer.alloc(bytes.length);
@@ -652,7 +469,7 @@ var init_network = __esm({
             return { transferId: input.transferId, offset: offset + bytes.length };
           }
           if (input.stage !== "read" || transfer.phase !== "complete") throw new Error("Network transfer is not ready to read");
-          const file = await open(join4(path, "response"), "r");
+          const file = await open(join7(path, "response"), "r");
           try {
             const size = (await file.stat()).size;
             if (offset >= size) throw new Error("Invalid response chunk offset");
@@ -666,16 +483,16 @@ var init_network = __esm({
           }
         } finally {
           await lock.close();
-          await rm(join4(path, "busy"), { force: true });
-          if (await exists(join4(path, "cancel"))) await rm(path, { recursive: true, force: true });
+          await rm(join7(path, "busy"), { force: true });
+          if (await exists(join7(path, "cancel"))) await rm(path, { recursive: true, force: true });
         }
       }
       async send(id) {
         const path = this.path(id);
-        const lock = await open(join4(path, "busy"), "wx", 384);
+        const lock = await open(join7(path, "busy"), "wx", 384);
         const controller = new AbortController();
         const cancel = setInterval(() => {
-          void exists(join4(path, "cancel")).then((found) => {
+          void exists(join7(path, "cancel")).then((found) => {
             if (found) controller.abort(new Error("Network transfer was cancelled"));
           });
         }, 100);
@@ -688,12 +505,12 @@ var init_network = __esm({
           transfer.phase = "sending";
           transfer.expires = Date.now() + TTL;
           await this.save(path, transfer);
-          if (transfer.uploaded && !["GET", "HEAD"].includes(transfer.method)) upload = createReadStream(join4(path, "upload"));
+          if (transfer.uploaded && !["GET", "HEAD"].includes(transfer.method)) upload = createReadStream(join7(path, "upload"));
           const response = await fetch(transfer.url, { method: transfer.method, headers: transfer.headers, body: upload, ...upload ? { duplex: "half" } : {}, signal: controller.signal });
           const headers = Object.fromEntries(response.headers);
           const cookies = response.headers.getSetCookie();
           if (Buffer.byteLength(JSON.stringify({ headers, cookies })) > 64 * 1024) throw new Error("Network response headers are too large");
-          const file = await open(join4(path, "response"), "w", 384);
+          const file = await open(join7(path, "response"), "w", 384);
           let bytes = 0;
           try {
             const reader = response.body?.getReader();
@@ -712,7 +529,7 @@ var init_network = __esm({
             await file.close();
           }
           const metadata = { transferId: id, status: response.status, headers, cookies, bytes };
-          if (bytes <= NETWORK_RESPONSE_CHUNK_BYTES) return { ...metadata, kind: "inline", body: (await readFile(join4(path, "response"))).toString("base64") };
+          if (bytes <= NETWORK_RESPONSE_CHUNK_BYTES) return { ...metadata, kind: "inline", body: (await readFile(join7(path, "response"))).toString("base64") };
           transfer.phase = "complete";
           transfer.expires = Date.now() + TTL;
           await this.save(path, transfer);
@@ -726,8 +543,8 @@ var init_network = __esm({
           clearTimeout(timeout);
           upload?.destroy();
           await lock.close();
-          await rm(join4(path, "busy"), { force: true });
-          if (!keep || await exists(join4(path, "cancel"))) await rm(path, { recursive: true, force: true });
+          await rm(join7(path, "busy"), { force: true });
+          if (!keep || await exists(join7(path, "cancel"))) await rm(path, { recursive: true, force: true });
         }
       }
     };
@@ -735,87 +552,19 @@ var init_network = __esm({
   }
 });
 
-// skills/wechat-miniprogram/scripts/runtime/snapshot.ts
-var snapshot_exports = {};
-__export(snapshot_exports, {
-  createSnapshotBuilder: () => createSnapshotBuilder
-});
-import { readFileSync as readFileSync6, readdirSync as readdirSync4 } from "node:fs";
-import { join as join5 } from "node:path";
-import { AppBuilder, MiniProgram, findRuntimeDir, findSetupFile, bundleSetup } from "@open-wxa/wxa-runner-core";
-import { resolveBaseLib, usesIsolatedContext } from "@open-wxa/wxa-runner-extractor";
-function staticFiles(root, prefix = "") {
-  return readdirSync4(join5(root, prefix), { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name.startsWith(".") || entry.name === "node_modules") return [];
-    const relative2 = prefix + entry.name;
-    return entry.isDirectory() ? staticFiles(root, relative2 + "/") : entry.isFile() ? [relative2] : [];
-  });
-}
-async function createSnapshotBuilder(options) {
-  const project = new MiniProgram(options.projectPath);
-  const builder = new AppBuilder(project);
-  const baseLib = resolveBaseLib();
-  const runtimeDir = findRuntimeDir();
-  const setupFile = options.setup === false ? null : options.setup || findSetupFile(project.projectPath);
-  const adapter = readFileSync6(new URL("./browser.js", import.meta.url), "utf8");
-  const libraries = {};
-  for (const [prefix, directory] of [["/__baselib__/", baseLib.dir], ["/__wxa__/runtime/", runtimeDir]]) {
-    for (const file of readdirSync4(directory)) {
-      if (file.endsWith(".js")) libraries[prefix + file] = { data: readFileSync6(join5(directory, file)).toString("base64"), type: "text/javascript" };
-    }
-  }
-  return {
-    project,
-    builder,
-    setupFile,
-    async build(revision) {
-      const build = await builder.build();
-      if (Object.keys(project.readAppJson().plugins || {}).length) throw new Error("WeChat plugins are not supported by the local browser host yet");
-      if (build.workerModules.length) throw new Error("Mini-program Workers are not supported by the local browser host yet");
-      const resources = { ...libraries };
-      let bytes = 0;
-      for (const file of staticFiles(project.root)) {
-        if (/\.(?:js|wxml|wxs|wxss|map|ts|less|s[ac]ss)$/.test(file)) continue;
-        const data = readFileSync6(join5(project.root, file));
-        bytes += data.length;
-        if (bytes > 48 * 1024 * 1024) throw new Error("Project static assets exceed the 48 MiB browser snapshot limit");
-        resources["/" + file] = { data: data.toString("base64"), type: "" };
-      }
-      const modules = Object.fromEntries(build.modules.map((id) => [id, builder.getModuleScript(id)]));
-      let setup = null;
-      if (setupFile) {
-        const { transform } = await import("esbuild");
-        setup = (await transform(await bundleSetup(setupFile), { format: "iife", globalName: "__mearlWxaSetup", target: "chrome141" })).code;
-      }
-      const setupEnv = Object.fromEntries(Object.entries(process.env).filter(([key, value]) => key.startsWith("WXA_") && value !== void 0));
-      const snapshot = { revision, build: { ...build, plugins: [] }, modules, resources, setup, setupEnv, appid: project.appid, baseLib: { version: baseLib.version, hasWorker: false }, isolated: usesIsolatedContext(baseLib.version) };
-      const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="mearl-wxa-revision" content="${revision}"><title>Mearl \xB7 WeChat</title></head><body><div id="wxa-root"></div><script>window.__mearlWxaSnapshot=${escapeScript(JSON.stringify(snapshot))};
-${escapeScript(adapter)}</script></body></html>`;
-      return { html, pages: build.pages };
-    }
-  };
-}
-var escapeScript;
-var init_snapshot = __esm({
-  "skills/wechat-miniprogram/scripts/runtime/snapshot.ts"() {
-    "use strict";
-    escapeScript = (value) => value.replace(/<\/script/gi, "<\\/script");
-  }
-});
-
 // skills/wechat-miniprogram/scripts/runtime/cli.ts
-import { readFileSync as readFileSync8 } from "node:fs";
+import { readFileSync as readFileSync7 } from "node:fs";
 
 // skills/wechat-miniprogram/scripts/runtime/index.ts
 init_dist();
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync3, renameSync as renameSync3, rmSync as rmSync4 } from "node:fs";
-import { basename as basename2, dirname as dirname4, join as join6, relative } from "node:path";
+import { pathToFileURL } from "node:url";
+import { existsSync as existsSync3, mkdirSync as mkdirSync2, writeFileSync as writeFileSync3, renameSync as renameSync2, rmSync as rmSync3 } from "node:fs";
+import { basename as basename2, dirname as dirname3, join as join5 } from "node:path";
 import { randomUUID as randomUUID3 } from "node:crypto";
 
 // skills/wechat-miniprogram/scripts/runtime/project.ts
-import { existsSync as existsSync3, readFileSync as readFileSync4, realpathSync } from "node:fs";
-import { isAbsolute, join as join3, resolve, dirname as dirname3, basename } from "node:path";
+import { existsSync as existsSync2, readFileSync as readFileSync3, realpathSync } from "node:fs";
+import { isAbsolute, join as join3, resolve, dirname as dirname2, basename } from "node:path";
 var PROJECT_OUTPUTS = ["", "dist/dev/mp-weixin", "unpackage/dist/dev/mp-weixin", "dist"];
 function projectIdentity(value) {
   if (typeof value !== "string" || !value.trim()) throw new Error("projectPath is required");
@@ -825,9 +574,9 @@ function projectIdentity(value) {
     try {
       return resolve(realpathSync(directory), ...missing);
     } catch (error) {
-      if (!["ENOENT", "ENOTDIR"].includes(error.code || "") || dirname3(directory) === directory) throw error;
+      if (!["ENOENT", "ENOTDIR"].includes(error.code || "") || dirname2(directory) === directory) throw error;
       missing.unshift(basename(directory));
-      directory = dirname3(directory);
+      directory = dirname2(directory);
     }
   }
 }
@@ -840,8 +589,8 @@ function findProjectDirectory(value) {
   const directory = realpathSync(resolve(value));
   const matches = PROJECT_OUTPUTS.map((part) => join3(directory, part)).filter((candidate) => {
     const configFile = join3(candidate, "project.config.json");
-    const config = existsSync3(configFile) ? JSON.parse(readFileSync4(configFile, "utf8")) : {};
-    return existsSync3(resolve(candidate, config.miniprogramRoot || "", "app.json"));
+    const config = existsSync2(configFile) ? JSON.parse(readFileSync3(configFile, "utf8")) : {};
+    return existsSync2(resolve(candidate, config.miniprogramRoot || "", "app.json"));
   });
   if (matches.includes(directory)) return directory;
   if (matches.length === 1) return realpathSync(matches[0]);
@@ -855,34 +604,30 @@ function projectDirectory(value) {
 }
 function runtimeOptions(input) {
   for (const key of Object.keys(input)) {
-    if (!["projectPath", "watch", "setup"].includes(key)) throw new Error(`Unknown runtime option: ${key}`);
+    if (!["projectPath", "setup"].includes(key)) throw new Error(`Unknown runtime option: ${key}`);
   }
-  if (input.watch !== void 0 && typeof input.watch !== "boolean") throw new Error("watch must be a boolean");
   const projectPath = projectDirectory(input.projectPath);
   if (input.setup !== void 0 && input.setup !== false && (typeof input.setup !== "string" || !input.setup.trim())) {
     throw new Error("setup must be a file path or false");
   }
   const setup = typeof input.setup === "string" ? realpathSync(isAbsolute(input.setup) ? input.setup : resolve(projectPath, input.setup)) : input.setup;
-  return { projectPath, watch: input.watch !== false, ...setup === void 0 ? {} : { setup } };
+  return { projectPath, ...setup === void 0 ? {} : { setup } };
 }
 function compilerError(error) {
   const message = error instanceof Error ? error.message : String(error);
   return new Error(/(?:-86|bad cpu type|exec format error)/i.test(message) ? "The selected WeChat compiler cannot run on this CPU. On Apple Silicon, wxa-runner can reuse compatible compilers from WeChat DevTools. Set WXA_DEVTOOLS_PATH if DevTools is installed outside the default location, or set WXA_WCC and WXA_WCSC to an executable pair. The npm fallback for macOS uses Intel binaries and requires Rosetta.\n" + message : message);
 }
 
-// skills/wechat-miniprogram/scripts/runtime/index.ts
-init_network();
-
 // skills/wechat-miniprogram/scripts/runtime/lock.ts
 init_dist();
 import { randomUUID as randomUUID2 } from "node:crypto";
-import { readFileSync as readFileSync5, rmSync as rmSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { readFileSync as readFileSync4, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
 async function acquireLock(file, timeoutMs, label, signal) {
   const token = randomUUID2();
   const deadline = Date.now() + timeoutMs;
   const owner = () => {
     try {
-      return JSON.parse(readFileSync5(file, "utf8"));
+      return JSON.parse(readFileSync4(file, "utf8"));
     } catch {
       return void 0;
     }
@@ -896,7 +641,7 @@ async function acquireLock(file, timeoutMs, label, signal) {
       return true;
     });
     if (acquired) return () => withRecordLock(file, () => {
-      if (owner()?.token === token) rmSync3(file, { force: true });
+      if (owner()?.token === token) rmSync2(file, { force: true });
     });
     if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${label}`);
     await new Promise((resolve2) => setTimeout(resolve2, 100));
@@ -904,173 +649,86 @@ async function acquireLock(file, timeoutMs, label, signal) {
 }
 
 // skills/wechat-miniprogram/scripts/runtime/index.ts
-var READY_TIMEOUT_MS = 3e4;
 var LIFECYCLE_TIMEOUT_MS = 45e3;
-function manager(projectPath, options) {
+function previewFiles(projectPath) {
   const configFile = keyedConfigFile("wechat", projectPath);
-  const logFile = keyedLogFile("wechat", projectPath);
-  const snapshotFile = join6(keyedDir("plugin-previews"), "wxa", basename2(configFile, ".json") + ".html");
-  const daemon = createDaemon({
-    name: "WeChat mini-program compiler",
-    scriptPath: fileURLToPath(new URL("./runtime.mjs", import.meta.url)),
-    configFile,
-    logFile,
-    readyTimeoutMs: READY_TIMEOUT_MS,
-    ...options ? { foregroundArgs: [JSON.stringify(options)] } : {},
-    startingRecord: (pid, startedAt) => ({ pid, startedAt, transport: "native-messaging", projectPath, ...options ? { options } : {} })
-  });
-  return { daemon, configFile, logFile, snapshotFile };
+  const snapshotFile = join5(keyedDir("plugin-previews"), "wxa", basename2(configFile, ".json") + ".html");
+  return { configFile, snapshotFile, projectPath };
 }
-function registeredRuntime(projectPath) {
-  const paths = runtimeProjectPaths(projectPath);
-  const registered = paths.flatMap((path) => {
-    const runtime = manager(path);
-    return readRecord(runtime.configFile)?.projectPath === path ? [{ ...runtime, projectPath: path }] : [];
-  });
-  const direct = registered.find((runtime) => runtime.projectPath === paths[0]);
-  if (direct) return direct;
-  if (registered.length > 1) throw new Error("Multiple mini-program runtimes found; select the output directory explicitly");
-  return registered[0] ?? { ...manager(paths[0]), projectPath: paths[0] };
+function registeredPreview(projectPath) {
+  const [direct, ...outputs] = runtimeProjectPaths(projectPath).map(previewFiles);
+  if (existsSync3(direct.snapshotFile) || readRecord(direct.configFile)?.projectPath === direct.projectPath) return direct;
+  const matches = outputs.filter((output) => existsSync3(output.snapshotFile) || readRecord(output.configFile)?.projectPath === output.projectPath);
+  if (matches.length > 1) throw new Error("Multiple mini-program previews found; select the output directory explicitly");
+  return matches[0] ?? direct;
 }
-async function startRuntime(input) {
+function checkPreviousCompiler({ configFile, projectPath }) {
+  const record = readRecord(configFile);
+  if (record?.projectPath !== projectPath || record.transport !== "native-messaging") return;
+  if (isAlive(record.pid)) throw new Error("A previous mini-program compiler still owns this preview. Stop it from the previous installation before continuing.");
+  removeRecordIfPid(configFile, record.pid);
+}
+async function compileRuntime(input) {
   const options = runtimeOptions(input);
-  const { daemon, configFile, logFile, snapshotFile } = manager(options.projectPath, options);
-  const release = await acquireLock(`${configFile}.lifecycle.lock`, LIFECYCLE_TIMEOUT_MS, "the mini-program compiler");
+  const preview = previewFiles(options.projectPath);
+  const { configFile, snapshotFile } = preview;
+  const release = await acquireLock(`${configFile}.lifecycle.lock`, LIFECYCLE_TIMEOUT_MS, "the mini-program preview");
+  const revision = randomUUID3();
+  const temporary = `${snapshotFile}.${revision}`;
   try {
-    let previous = daemon.running();
-    if (previous && (previous.transport !== "native-messaging" || JSON.stringify(previous.options) !== JSON.stringify(options))) {
-      throw new Error("This project is running with different runtime options. Stop it before restarting.");
+    checkPreviousCompiler(preview);
+    const { createSnapshotBuilder: createSnapshotBuilder2 } = await Promise.resolve().then(() => (init_snapshot(), snapshot_exports));
+    const compiler = await createSnapshotBuilder2(options);
+    try {
+      const { html, pages } = await compiler.build();
+      const bytes = Buffer.byteLength(html);
+      if (bytes > 96 * 1024 * 1024) throw new Error("Mini-program snapshot exceeds the browser size limit");
+      mkdirSync2(dirname3(snapshotFile), { recursive: true, mode: 448 });
+      writeFileSync3(temporary, html, { mode: 384 });
+      renameSync2(temporary, snapshotFile);
+      const url = pathToFileURL(snapshotFile);
+      url.searchParams.set("revision", revision);
+      return { url: url.href, projectPath: options.projectPath, bytes, pages };
+    } finally {
+      compiler.builder.dispose();
     }
-    if (previous?.url && fileURLToPath(previous.url) !== snapshotFile) {
-      await daemon.stop();
-      previous = null;
-    }
-    const deadline = Date.now() + READY_TIMEOUT_MS;
-    await daemon.start();
-    let record = daemon.running();
-    while (record?.daemonState === "starting" && Date.now() < deadline) {
-      await new Promise((resolve2) => setTimeout(resolve2, 100));
-      record = daemon.running();
-    }
-    if (!record?.revision || !record.url || record.daemonState === "starting") throw new Error(`Mini-program compilation failed.
-${tailFile(logFile, 15)}
-Log: ${logFile}`);
-    if (record.buildError) throw new Error(record.buildError);
-    return { ...record, reused: Boolean(previous), logFile };
+  } catch (error) {
+    throw compilerError(error);
   } finally {
-    release();
+    try {
+      rmSync3(temporary, { force: true });
+    } finally {
+      release();
+    }
   }
 }
 function runtimeState(input) {
-  const record = registeredRuntime(input.projectPath).daemon.running();
-  if (!record?.revision || record.transport !== "native-messaging") throw new Error("Mini-program compiler is stopped. Enable WeChat again to start it.");
-  return record;
-}
-async function stopRuntime(input) {
-  const { daemon, configFile, snapshotFile, projectPath } = registeredRuntime(input.projectPath);
-  const release = await acquireLock(`${configFile}.lifecycle.lock`, LIFECYCLE_TIMEOUT_MS, "the mini-program compiler");
-  try {
-    await daemon.stop();
-    if (daemon.running()) throw new Error("Mini-program compiler is still stopping");
-    rmSync4(snapshotFile, { force: true });
-    rmSync4(configFile.replace(/\.json$/, ".html"), { force: true });
-    return { stopped: true, projectPath, previewUrl: pathToFileURL(snapshotFile).href };
-  } finally {
-    release();
-  }
-}
-async function serveRuntime(input) {
-  const options = runtimeOptions(input);
-  const { configFile, snapshotFile } = manager(options.projectPath);
-  const { createSnapshotBuilder: createSnapshotBuilder2 } = await Promise.resolve().then(() => (init_snapshot(), snapshot_exports));
-  const compiler = await createSnapshotBuilder2(options);
-  mkdirSync2(dirname4(snapshotFile), { recursive: true, mode: 448 });
-  let record = { pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString(), transport: "native-messaging", projectPath: options.projectPath, options };
-  const publish = async () => {
-    const revision = randomUUID3();
-    const { html, pages } = await compiler.build(revision);
-    if (Buffer.byteLength(html) > 96 * 1024 * 1024) throw new Error("Mini-program snapshot exceeds the browser size limit");
-    const temporary = snapshotFile + "." + process.pid;
-    writeFileSync3(temporary, html, { mode: 384 });
-    renameSync3(temporary, snapshotFile);
-    const url = pathToFileURL(snapshotFile);
-    url.searchParams.set("project", options.projectPath);
-    url.searchParams.set("source", pathToFileURL(options.projectPath.replace(/[/\\]$/, "") + "/").href);
-    record = { ...record, url: url.href, revision, bytes: Buffer.byteLength(html), pages, buildError: void 0 };
-    const current = readRecord(configFile);
-    if (current && current.pid !== process.pid) throw new Error("Another compiler process owns this project");
-    writeRecord(configFile, record);
-  };
-  try {
-    await publish();
-  } catch (error) {
-    compiler.builder.dispose();
-    throw compilerError(error);
-  }
-  const sweep = () => {
-    void networkTransfers.cleanupExpired().catch((error) => console.error("Network staging cleanup:", error));
-  };
-  sweep();
-  const idle = setInterval(sweep, 6e4);
-  let watcher;
-  let timer;
-  let chain = Promise.resolve();
-  let closing = false;
-  if (options.watch) {
-    const { watch } = await import("chokidar");
-    watcher = watch([compiler.project.root, ...compiler.setupFile ? [compiler.setupFile] : []], { ignoreInitial: true, ignored: /(?:^|[/\\])(?:node_modules|\.git)(?:[/\\]|$)/, awaitWriteFinish: { stabilityThreshold: 120, pollInterval: 40 } });
-    watcher.on("all", (_event, file) => {
-      compiler.builder.invalidate([relative(compiler.project.root, file).replaceAll("\\", "/")]);
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        chain = chain.then(async () => {
-          if (closing) return;
-          try {
-            await publish();
-          } catch (error) {
-            record = { ...record, buildError: compilerError(error).message };
-            writeRecord(configFile, record);
-          }
-        });
-      }, 150);
-    });
-  }
-  const close = async () => {
-    if (closing) return;
-    closing = true;
-    clearInterval(idle);
-    clearTimeout(timer);
-    await watcher?.close();
-    await chain;
-    compiler.builder.dispose();
-    rmSync4(snapshotFile, { force: true });
-    removeRecordIfPid(configFile, process.pid);
-  };
-  process.once("SIGTERM", () => void close());
-  process.once("SIGINT", () => void close());
+  const { snapshotFile, projectPath } = registeredPreview(input.projectPath);
+  if (!existsSync3(snapshotFile)) throw new Error("Mini-program preview is unavailable. Run the project again to generate it.");
+  return { url: pathToFileURL(snapshotFile).href, projectPath };
 }
 
 // skills/wechat-miniprogram/scripts/runtime/check.ts
-import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync4, mkdtempSync, readdirSync as readdirSync5, readFileSync as readFileSync7, rmSync as rmSync5 } from "node:fs";
+import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync4, mkdtempSync, readdirSync as readdirSync4, readFileSync as readFileSync6, rmSync as rmSync4 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join7 } from "node:path";
+import { join as join6 } from "node:path";
 import { AppBuilder as AppBuilder2, MiniProgram as MiniProgram2, findRuntimeDir as findRuntimeDir2 } from "@open-wxa/wxa-runner-core";
 import { resolveBaseLib as resolveBaseLib2 } from "@open-wxa/wxa-runner-extractor";
 async function checkRuntime() {
   const baseLib = resolveBaseLib2();
-  for (const file of readdirSync5(baseLib.dir).filter((file2) => file2.endsWith(".js"))) readFileSync7(join7(baseLib.dir, file));
+  for (const file of readdirSync4(baseLib.dir).filter((file2) => file2.endsWith(".js"))) readFileSync6(join6(baseLib.dir, file));
   findRuntimeDir2();
-  const directory = mkdtempSync(join7(tmpdir(), "mearl-wechat-check-"));
+  const directory = mkdtempSync(join6(tmpdir(), "mearl-wechat-check-"));
   let builder;
   try {
-    mkdirSync3(join7(directory, "pages/index"), { recursive: true });
+    mkdirSync3(join6(directory, "pages/index"), { recursive: true });
     for (const [file, content] of Object.entries({
       "app.json": JSON.stringify({ pages: ["pages/index/index"] }),
       "app.js": "App({})",
       "pages/index/index.js": "Page({})",
       "pages/index/index.wxml": "<view>ready</view>",
       "pages/index/index.wxss": "view{color:#333}"
-    })) writeFileSync4(join7(directory, file), content);
+    })) writeFileSync4(join6(directory, file), content);
     builder = new AppBuilder2(new MiniProgram2(directory));
     await builder.build();
     return { ready: true, baseLibVersion: baseLib.version, nodeVersion: process.versions.node };
@@ -1078,24 +736,20 @@ async function checkRuntime() {
     throw compilerError(error);
   } finally {
     builder?.dispose();
-    rmSync5(directory, { recursive: true, force: true });
+    rmSync4(directory, { recursive: true, force: true });
   }
 }
 
 // skills/wechat-miniprogram/scripts/runtime/cli.ts
 var [command, payload = "{}"] = process.argv.slice(2);
 try {
-  const input = JSON.parse(payload === "--stdin" ? readFileSync8(0, "utf8") : payload);
+  const input = JSON.parse(payload === "--stdin" ? readFileSync7(0, "utf8") : payload);
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Expected a JSON object");
   console.log = console.error;
-  if (command === "--foreground") {
-    await serveRuntime(input);
-  } else {
-    const result = command === "check" ? await checkRuntime() : command === "start" ? await startRuntime(input) : command === "stop" ? await stopRuntime(input) : command === "state" ? runtimeState(input) : command === "request" ? await (await Promise.resolve().then(() => (init_network(), network_exports))).requestNetwork(input) : (() => {
-      throw new Error("Unknown mini-program runtime command");
-    })();
-    process.stdout.write(JSON.stringify(result) + "\n");
-  }
+  const result = command === "check" ? await checkRuntime() : command === "compile" ? await compileRuntime(input) : command === "state" ? runtimeState(input) : command === "request" ? await (await Promise.resolve().then(() => (init_network(), network_exports))).requestNetwork(input) : (() => {
+    throw new Error("Unknown mini-program runtime command");
+  })();
+  process.stdout.write(JSON.stringify(result) + "\n");
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

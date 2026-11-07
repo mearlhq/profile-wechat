@@ -4,8 +4,9 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findExecutable, npmExecEnvironment, prependNodePath, runCommand, type CommandRunner } from '@mearl/daemon-core';
+import { findExecutable, keyedConfigFile, npmExecEnvironment, prependNodePath, runCommand, type CommandRunner } from '@mearl/daemon-core';
 import { acquireLock } from './runtime/lock.js';
+import { projectDirectory } from './runtime/project.js';
 
 export { detectProject } from './runtime/project.js';
 
@@ -93,4 +94,15 @@ export function setup(context?: { runCommand: CommandRunner }) {
 }
 export function runtimeCommand(command: string, input: Record<string, unknown>, signal?: AbortSignal, progress?: (message: string) => void) {
   return localRuntime().run(command, input, signal, progress);
+}
+
+export async function withPreviewRun<T>(value: unknown, run: (projectPath: string) => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const projectPath = projectDirectory(value);
+  const lock = keyedConfigFile('wechat', projectPath) + '.run.lock';
+  const release = await acquireLock(lock, 240_000, 'the mini-program run', signal);
+  try {
+    return await run(projectPath);
+  } finally {
+    release();
+  }
 }

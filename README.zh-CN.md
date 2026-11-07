@@ -40,7 +40,7 @@ npx @mearl/setup@3.0.0 profile install mearlhq/wechat-profile
 
 ```sh
 npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/wechat-profile --skill wechat-miniprogram --yes
-mearl wxa start /path/to/project
+mearl wxa run /path/to/project
 ```
 
 编译器要求、请求 Mock 和浏览器权限见[小程序指南](docs/wechat-miniprogram.zh-CN.md)。

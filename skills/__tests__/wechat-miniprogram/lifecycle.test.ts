@@ -1,97 +1,94 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync } from 'node:fs';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, symlinkSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-const fixture = vi.hoisted(() => ({ storage: '', start: vi.fn(), stop: vi.fn() }));
+
+const fixture = vi.hoisted(() => ({ storage: '', compilerAlive: false, build: vi.fn(), dispose: vi.fn() }));
 vi.mock('@mearl/daemon-core', async importOriginal => {
   const original = await importOriginal<typeof import('@mearl/daemon-core')>();
   return {
     ...original,
     keyedConfigFile: (_name: string, key: string) => join(fixture.storage, original.hashKey(key) + '.json'),
     keyedDir: (name: string) => join(fixture.storage, name),
-    keyedLogFile: (_name: string, key: string) => join(fixture.storage, original.hashKey(key) + '.log'),
-    createDaemon: ({ configFile }: { configFile: string }) => ({
-      running: () => original.readRecord(configFile),
-      start: () => fixture.start(configFile),
-      stop: async () => { fixture.stop(configFile); rmSync(configFile, { force: true }); },
-    }),
+    isAlive: (pid: number) => pid === 123 ? fixture.compilerAlive : original.isAlive(pid),
   };
 });
-import { hashKey, readRecord } from '@mearl/daemon-core';
-import { runtimeState, startRuntime, stopRuntime } from '../../wechat-miniprogram/scripts/runtime/index.js';
+vi.mock('../../wechat-miniprogram/scripts/runtime/snapshot.js', () => ({
+  createSnapshotBuilder: async () => ({ builder: { dispose: fixture.dispose }, build: fixture.build }),
+}));
+import { hashKey } from '@mearl/daemon-core';
+import { compileRuntime, runtimeState } from '../../wechat-miniprogram/scripts/runtime/index.js';
 import { runtimeProjectPaths } from '../../wechat-miniprogram/scripts/runtime/project.js';
+
 let root: string;
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'mearl-lifecycle-'));
-  fixture.storage = join(root, 'runtime'); mkdirSync(fixture.storage);
-  fixture.start.mockReset();
-  fixture.stop.mockClear();
+  fixture.storage = join(root, 'runtime');
+  fixture.compilerAlive = false;
+  fixture.dispose.mockClear();
+  fixture.build.mockReset().mockResolvedValue({ html: '<html>first</html>', pages: ['pages/index/index'] });
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
-function record(project: string) {
+
+function files(project: string) {
   const path = runtimeProjectPaths(project)[0];
-  const config = join(fixture.storage, hashKey(path) + '.json');
-  writeFileSync(config, JSON.stringify({ pid: 123, projectPath: path, transport: 'native-messaging', revision: 'ready' }));
-  const html = config.replace(/\.json$/, '.html'); writeFileSync(html, 'snapshot');
-  return { path, config, html };
+  const key = hashKey(path);
+  return { path, config: join(fixture.storage, key + '.json'), html: join(fixture.storage, 'plugin-previews', 'wxa', key + '.html') };
 }
-it('queries and stops a registered runtime after its project directory has been deleted', async () => {
-  const project = join(root, 'project'); mkdirSync(project);
-  const runtime = record(project);
-  rmSync(project, { recursive: true });
-  expect(runtimeState({ projectPath: project })).toMatchObject({ projectPath: runtime.path, revision: 'ready' });
-  expect(await stopRuntime({ projectPath: project })).toMatchObject({ stopped: true, projectPath: runtime.path });
-  expect(fixture.stop).toHaveBeenCalledWith(runtime.config);
-  expect(existsSync(runtime.html)).toBe(false);
-});
-it('finds registered framework outputs without app.json or valid project configuration', async () => {
-  const output = join(root, 'dist/dev/mp-weixin'); mkdirSync(output, { recursive: true });
-  const runtime = record(output);
+function writePreview(project: string) {
+  const preview = files(project);
+  mkdirSync(dirname(preview.html), { recursive: true });
+  writeFileSync(preview.html, 'snapshot');
+  return preview;
+}
+
+it('finds a preview after its framework output directory is deleted', async () => {
+  const output = join(root, 'dist/dev/mp-weixin');
+  mkdirSync(output, { recursive: true });
+  const preview = writePreview(output);
+  rmSync(output, { recursive: true });
   writeFileSync(join(root, 'project.config.json'), '{broken');
-  expect(runtimeState({ projectPath: root })).toMatchObject({ projectPath: runtime.path });
-  await stopRuntime({ projectPath: root });
-  expect(existsSync(runtime.html)).toBe(false);
+  expect(runtimeState({ projectPath: root })).toMatchObject({ projectPath: preview.path });
 });
-it('resolves symlink ancestors and rejects ambiguous registered output directories', async () => {
+
+it('resolves symlink ancestors and rejects ambiguous preview directories', async () => {
   const project = join(root, 'project'); mkdirSync(project);
   const alias = join(root, 'alias'); symlinkSync(project, alias, 'junction');
   expect(runtimeProjectPaths(join(alias, 'deleted'))[0]).toBe(join(runtimeProjectPaths(project)[0], 'deleted'));
-  const first = join(project, 'dist/dev/mp-weixin'); mkdirSync(first, { recursive: true }); record(first);
-  const second = join(project, 'unpackage/dist/dev/mp-weixin'); mkdirSync(second, { recursive: true }); record(second);
-  await expect(stopRuntime({ projectPath: project })).rejects.toThrow('Multiple');
-  expect(fixture.stop).not.toHaveBeenCalled();
+  writePreview(join(project, 'dist/dev/mp-weixin'));
+  writePreview(join(project, 'unpackage/dist/dev/mp-weixin'));
+  expect(() => runtimeState({ projectPath: project })).toThrow('Multiple');
 });
 
-it('serializes concurrent starts so both callers receive the same ready compiler', async () => {
+it('compiles once per run, disposes the compiler and preserves the published file on error', async () => {
   writeFileSync(join(root, 'app.json'), '{"pages":[]}');
-  const projectPath = runtimeProjectPaths(root)[0];
-  let complete!: () => void;
-  const building = new Promise<void>(resolve => { complete = resolve; });
-  let starts = 0;
-  fixture.start.mockImplementation(async file => {
-    if (readRecord(file)) return;
-    starts++;
-    await building;
-    const url = pathToFileURL(join(fixture.storage, 'plugin-previews', 'wxa', hashKey(projectPath) + '.html')).href;
-    writeFileSync(file, JSON.stringify({ pid: process.pid, projectPath, transport: 'native-messaging', options: { projectPath, watch: true }, revision: 'ready', url }));
-  });
-  const first = startRuntime({ projectPath });
-  await expect.poll(() => starts).toBe(1);
-  const second = startRuntime({ projectPath });
-  complete();
-  expect(await Promise.all([first, second])).toMatchObject([{ revision: 'ready', reused: false }, { revision: 'ready', reused: true }]);
-  expect(starts).toBe(1);
+  const first = await compileRuntime({ projectPath: root });
+  const preview = files(root);
+  expect(fileURLToPath(first.url)).toBe(preview.html);
+  expect(fixture.build).toHaveBeenCalledTimes(1);
+  expect(fixture.dispose).toHaveBeenCalledTimes(1);
+  expect(existsSync(preview.config)).toBe(false);
+  fixture.build.mockRejectedValueOnce(new Error('Invalid WXML'));
+  await expect(compileRuntime({ projectPath: root })).rejects.toThrow('Invalid WXML');
+  expect(readFileSync(preview.html, 'utf8')).toBe('<html>first</html>');
+  fixture.build.mockResolvedValueOnce({ html: '<html>second</html>', pages: [] });
+  const second = await compileRuntime({ projectPath: root });
+  expect(fileURLToPath(second.url)).toBe(preview.html);
+  expect(second.url).not.toBe(first.url);
+  expect(readFileSync(preview.html, 'utf8')).toBe('<html>second</html>');
+  expect(fixture.dispose).toHaveBeenCalledTimes(3);
 });
 
-it('waits for a compiler still starting after its original caller exited', async () => {
+it('protects a preview owned by an old compiler and replaces it once the compiler exits', async () => {
   writeFileSync(join(root, 'app.json'), '{"pages":[]}');
-  const { path: projectPath, config } = record(root);
-  const options = { projectPath, watch: true };
-  const running = { pid: process.pid, projectPath, transport: 'native-messaging', options };
-  writeFileSync(config, JSON.stringify({ ...running, daemonState: 'starting' }));
-  fixture.start.mockImplementation(() => {
-    setTimeout(() => writeFileSync(config, JSON.stringify({ ...running, revision: 'ready', url: 'file:///snapshot.html' })), 10);
-  });
-  await expect(startRuntime({ projectPath })).resolves.toMatchObject({ revision: 'ready', reused: true });
+  const preview = writePreview(root);
+  writeFileSync(preview.config, JSON.stringify({ pid: 123, projectPath: preview.path, transport: 'native-messaging' }));
+  fixture.compilerAlive = true;
+  await expect(compileRuntime({ projectPath: root })).rejects.toThrow('previous mini-program compiler');
+  expect(readFileSync(preview.html, 'utf8')).toBe('snapshot');
+  fixture.compilerAlive = false;
+  await compileRuntime({ projectPath: root });
+  expect(existsSync(preview.config)).toBe(false);
+  expect(readFileSync(preview.html, 'utf8')).toBe('<html>first</html>');
 });

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const jobs = [
   { entryPoints: [root + 'scripts/bootstrap.ts'], outfile: root + 'scripts/bootstrap.mjs', platform: 'node', format: 'esm' },
-  { entryPoints: [root + 'scripts/runtime/cli.ts'], outfile: root + 'assets/runtime/runtime.mjs', platform: 'node', format: 'esm', external: ['@open-wxa/*', 'chokidar', 'esbuild'] },
+  { entryPoints: [root + 'scripts/runtime/cli.ts'], outfile: root + 'assets/runtime/runtime.mjs', platform: 'node', format: 'esm', external: ['@open-wxa/*', 'esbuild'] },
   { entryPoints: [root + 'scripts/runtime/browser.ts'], outfile: root + 'assets/runtime/browser.js', platform: 'browser', format: 'iife' },
 ];
 for (const job of jobs) {

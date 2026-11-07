@@ -18,17 +18,17 @@ From the repository root, with Node.js >= 22.23.4 and pnpm 10.34.5:
 pnpm install --frozen-lockfile
 pnpm build
 npx @mearl/setup@3.0.0 plugin "$PWD/skills/wechat-miniprogram"
-mearl wxa start /path/to/project
+mearl wxa run /path/to/project
 ```
 
 The Skill's `scripts/` directory contains the runtime sources. The root build generates self-contained runtime and browser bundles inside the Skill. Run `pnpm check:generated` to verify those resources.
 
-Select a project directory in the **WeChat Mini Program** toolbox, or run `mearl wxa start <project-path>`. WeChat H5 uses a separate App profile.
+Select a project directory in the **WeChat Mini Program** toolbox, or run `mearl wxa run <project-path>`. WeChat H5 uses a separate App profile.
 
-Set `device` to select a preset and `orientation` to choose portrait or landscape. Starting the same project with a device reuses the compilation and browser tab. Use `path` to select the page to open.
+Set `device` to select a preset and `orientation` to choose portrait or landscape. Running the same project with a device rebuilds the preview in the existing browser tab. Use `path` to select the page to open.
 
 ```bash
-mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/project","device":"pixel-11","orientation":"landscape"}}'
+mearl wxa --payload '{"command":"run","input":{"projectPath":"/path/to/project","device":"pixel-11","orientation":"landscape"}}'
 ```
 
 The preview uses Mearl device presets and system bar components. The preset controls the browser viewport and the dimensions, pixel ratio, model, and system reported by `wx.getSystemInfo`. Use standard Mearl browser commands for page actions, screenshots, and test API calls.
@@ -40,33 +40,25 @@ scripts. Select the output directory explicitly when multiple candidates exist.
 ### CLI options
 
 ```bash
-mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/mp-weixin","path":"pages/detail/index?id=1","watch":true}}'
+mearl wxa --payload '{"command":"run","input":{"projectPath":"/path/to/mp-weixin","path":"pages/detail/index?id=1"}}'
 ```
 
 `projectPath` selects the project or compiled output. Optional `path` must name a declared page.
-`watch` defaults to `true`. `setup` accepts a script path relative to the resolved project directory,
+`setup` accepts a script path relative to the resolved project directory,
 an absolute path, or `false` to disable setup discovery. A project's `wxa.setup.js` can declare mocks
 that are applied on every launch, while mocks set through the browser test API reset on refresh.
-Stop a running project before changing its runtime options.
 
-Startup returns `runtime.projectPath`, `tabId`, the current page, page stack, page data, errors and
-`healthy`. Browser startup failure can leave the compiler running; retry to reuse it or stop it using
-the runtime project path.
+The run returns `runtime.projectPath`, `tabId`, the current page, page stack, page data, errors and
+`healthy`.
 
 ### Runtime behavior
 
-The runtime uses no HTTP server or listening network port. One compiler process per canonical
-project directory writes a self-contained HTML runtime into `~/.mearl/plugin-previews/wxa/`, opened through `file://`. The virtual resource map supplies compiled templates, modules, static assets, and the base library. The Skill uses Mearl page runtimes to forward network requests and check compilation status. The preview supports both the extension and CDP.
+Each run compiles once and writes a self-contained HTML preview to
+`~/.mearl/plugin-previews/wxa/`. The browser opens it through `file://`. The Skill uses Mearl page runtimes to forward network requests. The preview supports both the extension and CDP.
 
-Saving a project file recompiles the runtime and refreshes the same tab. The current page path
-and query survive refresh; in-memory page data and API mocks reset. Browser mini-program storage
-persists. Compilation errors appear over the last working page and recover after a successful build.
-Closing a page does not stop its compiler. Use `mearl wxa stop <runtime.projectPath>` to stop the
-watcher and remove the generated HTML; the browser tab remains open. Startup compiles before
-publishing readiness, so compilation failure is not reported as a successful launch.
-State queries and stopping use the registered runtime identity, so they remain available after
-`app.json`, project configuration or the output directory has been removed.
+Run `mearl wxa run` again after changes to rebuild and update the original tab. The current page path and query carry over by default. Use `path` to open a specific page. In-memory page data and API mocks reset, while browser mini-program storage persists. A failed compile preserves the last working preview.
 
+Close the tab when you finish. Each project keeps one local preview file, which the next successful run replaces.
 
 ## Requirements and boundaries
 
@@ -85,7 +77,7 @@ State queries and stopping use the registered runtime identity, so they remain a
   larger bodies use 128 KiB upload chunks and 256 KiB download chunks.
   Native workers spool bodies to private files in `~/.mearl/wechat-network/`, with bounded
   transport memory. Responses become available after downloading to disk; this does not provide
-  real-time SSE or incremental network events. Cancellation requests the release of staged data. After navigation or tab closure, abandoned transfers expire after five minutes of inactivity. The compiler and new transfers sweep expired data. HTTP forwarding times out after
+  real-time SSE or incremental network events. Cancellation requests the release of staged data. After navigation or tab closure, abandoned transfers expire after five minutes of inactivity. New transfers clear expired data. HTTP forwarding times out after
   120 seconds; the mini-program's own shorter request timeout still applies.
 - Fresh element refs from `page_snapshot` address inputs across frames. Page state inspection
   always executes in the runner's main frame; click operations resolve the current page frame.

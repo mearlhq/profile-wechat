@@ -18,17 +18,17 @@
 pnpm install --frozen-lockfile
 pnpm build
 npx @mearl/setup@3.0.0 plugin "$PWD/skills/wechat-miniprogram"
-mearl wxa start /path/to/project
+mearl wxa run /path/to/project
 ```
 
 运行源码位于 Skill 的 `scripts/`。根目录构建在 Skill 内生成自包含的运行脚本和浏览器资源。使用 `pnpm check:generated` 检查生成结果。
 
-在工具箱的“微信小程序”中选择项目目录，或运行 `mearl wxa start <项目路径>`。微信 H5 使用独立的 App 档案。
+在工具箱的“微信小程序”中选择项目目录，或运行 `mearl wxa run <项目路径>`。微信 H5 使用独立的 App 档案。
 
-通过 `device` 选择机型，`orientation` 选择横竖屏。再次启动同一项目并传入机型时，复用编译结果和原标签页。可用 `path` 指定要打开的页面。
+通过 `device` 选择机型，`orientation` 选择横竖屏。再次运行同一项目并传入机型时，会重新编译并更新原标签页。可用 `path` 指定要打开的页面。
 
 ```bash
-mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/project","device":"pixel-11","orientation":"landscape"}}'
+mearl wxa --payload '{"command":"run","input":{"projectPath":"/path/to/project","device":"pixel-11","orientation":"landscape"}}'
 ```
 
 小程序运行页复用 Mearl 设备配置与系统栏组件。机型影响浏览器视口以及 `wx.getSystemInfo` 返回的尺寸、像素比、型号和系统信息。页面操作、截图和测试 API 使用现有浏览器命令。
@@ -39,28 +39,22 @@ uni-app 和 Taro 项目请先执行框架的微信小程序构建。启动器会
 ### CLI 选项
 
 ```bash
-mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/mp-weixin","path":"pages/detail/index?id=1","watch":true}}'
+mearl wxa --payload '{"command":"run","input":{"projectPath":"/path/to/mp-weixin","path":"pages/detail/index?id=1"}}'
 ```
 
-`projectPath` 指定项目或编译产物目录；可选 `path` 必须是已声明的页面。`watch` 默认开启。
+`projectPath` 指定项目或编译产物目录；可选 `path` 必须是已声明的页面。
 `setup` 可以是相对解析后项目目录的脚本路径、绝对路径，或用于禁用自动发现的 `false`。
-项目的 `wxa.setup.js` 可以声明每次启动时应用的 Mock；通过浏览器测试 API 设置的 Mock 在整页刷新后重置。
-修改运行选项前先停止已有实例。
+项目的 `wxa.setup.js` 可以声明每次运行时应用的 Mock；通过浏览器测试 API 设置的 Mock 在整页刷新后重置。
 
-启动结果包含 `runtime.projectPath`、`tabId`、当前页面、页面栈、页面数据、错误及 `healthy`。
-浏览器启动失败时编译进程可能仍在运行，可以再次启动复用，或使用运行项目路径停止。
+运行结果包含 `runtime.projectPath`、`tabId`、当前页面、页面栈、页面数据、错误及 `healthy`。
 
 ### 运行行为
 
-运行时不启动 HTTP 服务，也不监听网络端口。每个规范化项目目录复用一个编译进程，向
-`~/.mearl/plugin-previews/wxa/` 写入自包含 HTML 运行页，由浏览器通过 `file://` 打开。编译后的模板、模块、静态资源和基础库通过页内虚拟资源映射加载。Skill 通过 Mearl 页面运行时转发网络请求并查询编译状态。运行页可使用扩展或纯 CDP。
+每次运行编译一次，向 `~/.mearl/plugin-previews/wxa/` 写入自包含 HTML，再由浏览器通过 `file://` 打开。Skill 通过 Mearl 页面运行时转发网络请求。可使用扩展或纯 CDP。
 
-保存项目文件后会重新编译并刷新原标签页，保留当前页面路径与参数；页面内存数据和 API Mock 重置，
-小程序浏览器存储保留。编译错误会叠加显示在上次成功的页面上，修复后自动恢复。
-关闭页面不停止编译进程；使用 `mearl wxa stop <runtime.projectPath>` 关闭监听、删除生成的 HTML，
-保留浏览器标签页。启动时先编译，编译失败不会被报告为启动成功。
-状态查询和停止操作使用已登记的运行实例标识，删除 `app.json`、项目配置或编译产物目录后仍可执行。
+修改后再次运行 `mearl wxa run`，即可重新编译并更新原标签页。默认保留当前页面路径与参数，也可用 `path` 指定页面。页面内存数据和 API Mock 会重置，小程序浏览器存储保留。编译失败时，已生成的预览仍可使用。
 
+看完可以直接关闭标签页。每个项目保留一份本地预览文件，下次成功运行时会覆盖。
 
 ## 环境要求与能力边界
 
@@ -76,7 +70,7 @@ mearl wxa --payload '{"command":"start","input":{"projectPath":"/path/to/mp-weix
   256 KiB 时只需一次桥接调用；大数据按上传 128 KiB、下载 256 KiB 分块传输。
   Native 进程将数据暂存到 `~/.mearl/wechat-network/` 的私有文件，
   控制传输内存占用。响应下载到磁盘后才交给页面，不提供实时 SSE 或增量网络事件。
-  取消会请求释放暂存数据。导航或关闭标签页后，未完成清理的传输在闲置五分钟后过期，由编译进程或下一次传输回收。
+  取消会请求释放暂存数据。导航或关闭标签页后，未完成清理的传输在闲置五分钟后过期，由下一次传输回收。
   HTTP 转发超时为 120 秒，小程序自身设置的更短请求超时仍然生效。
 - 输入框使用 `page_snapshot` 新返回的跨 frame 元素引用。页面状态在运行器主 frame 中读取；
   点击操作需要定位当前页面的渲染 frame。

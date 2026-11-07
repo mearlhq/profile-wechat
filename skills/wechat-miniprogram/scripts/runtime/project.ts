@@ -25,7 +25,6 @@ export function runtimeProjectPaths(value: unknown): string[] {
 
 export interface RuntimeOptions {
   projectPath: string;
-  watch: boolean;
   setup?: string | false;
 }
 
@@ -58,9 +57,8 @@ export function detectProject(value: unknown) {
 
 export function runtimeOptions(input: Record<string, unknown>): RuntimeOptions {
   for (const key of Object.keys(input)) {
-    if (!['projectPath', 'watch', 'setup'].includes(key)) throw new Error(`Unknown runtime option: ${key}`);
+    if (!['projectPath', 'setup'].includes(key)) throw new Error(`Unknown runtime option: ${key}`);
   }
-  if (input.watch !== undefined && typeof input.watch !== 'boolean') throw new Error('watch must be a boolean');
   const projectPath = projectDirectory(input.projectPath);
   if (input.setup !== undefined && input.setup !== false && (typeof input.setup !== 'string' || !input.setup.trim())) {
     throw new Error('setup must be a file path or false');
@@ -68,7 +66,7 @@ export function runtimeOptions(input: Record<string, unknown>): RuntimeOptions {
   const setup = typeof input.setup === 'string'
     ? realpathSync(isAbsolute(input.setup) ? input.setup : resolve(projectPath, input.setup))
     : input.setup;
-  return { projectPath, watch: input.watch !== false, ...(setup === undefined ? {} : { setup }) };
+  return { projectPath, ...(setup === undefined ? {} : { setup }) };
 }
 
 export function compilerError(error: unknown): Error {

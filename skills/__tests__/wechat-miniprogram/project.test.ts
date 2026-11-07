@@ -47,9 +47,9 @@ describe('mini-program project selection', () => {
     expect(() => projectDirectory(root)).toThrow('Build the project');
     app(root);
     expect(() => runtimeOptions({ projectPath: root, realLogin: true })).toThrow('Unknown');
-    expect(() => runtimeOptions({ projectPath: root, watch: 'false' })).toThrow('boolean');
+    expect(() => runtimeOptions({ projectPath: root, watch: 'false' })).toThrow('Unknown runtime option: watch');
     expect(() => runtimeOptions({ projectPath: root, setup: true })).toThrow('setup');
-    expect(runtimeOptions({ projectPath: root, watch: false, setup: false })).toEqual({ projectPath: root, watch: false, setup: false });
+    expect(runtimeOptions({ projectPath: root, setup: false })).toEqual({ projectPath: root, setup: false });
   });
   it('explains compiler architecture failures without treating them as ready', () => {
     expect(compilerError(new Error('spawn Unknown system error -86')).message).toContain('Apple Silicon');

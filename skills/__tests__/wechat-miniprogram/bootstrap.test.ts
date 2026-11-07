@@ -1,11 +1,18 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { createRuntimeInstaller } from '../../wechat-miniprogram/scripts/bootstrap.js';
+import { createRuntimeInstaller, withPreviewRun } from '../../wechat-miniprogram/scripts/bootstrap.js';
 
 let root: string;
+vi.mock('@mearl/daemon-core', async importOriginal => {
+  const original = await importOriginal<typeof import('@mearl/daemon-core')>();
+  return {
+    ...original,
+    keyedConfigFile: (_name: string, key: string) => join(root, original.hashKey(key) + '.json'),
+  };
+});
 let skillRoot: string;
 let cacheRoot: string;
 const source = `import {readFileSync} from 'node:fs';
@@ -89,4 +96,28 @@ it('does not install after cancellation', async () => {
   const runner = installer();
   await expect(createRuntimeInstaller({ skillRoot, cacheRoot, runner }).ensure({ signal: abort.signal })).rejects.toThrow();
   expect(runner).not.toHaveBeenCalled();
+});
+
+it('holds the project lock through preview launch across project and output aliases', async () => {
+  const output = join(root, 'dist');
+  mkdirSync(output);
+  writeFileSync(join(output, 'app.json'), '{"pages":[]}');
+  const alias = join(root, 'alias');
+  symlinkSync(output, alias, 'junction');
+  let finish!: () => void;
+  const opening = new Promise<void>(resolve => { finish = resolve; });
+  const openFirst = vi.fn(async () => opening);
+  const openSecond = vi.fn(async () => {});
+  const first = withPreviewRun(root, openFirst);
+  await expect.poll(() => openFirst.mock.calls.length).toBe(1);
+  const second = withPreviewRun(alias, openSecond);
+  await Promise.resolve();
+  try {
+    expect(openSecond).not.toHaveBeenCalled();
+  } finally {
+    finish();
+    await Promise.all([first, second]);
+  }
+  expect(openFirst).toHaveBeenCalledExactlyOnceWith(output);
+  expect(openSecond).toHaveBeenCalledExactlyOnceWith(output);
 });

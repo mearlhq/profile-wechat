@@ -78,13 +78,10 @@ it('expires queued requests without sending them after a late connection', async
   expect(requests()).toHaveLength(1);
 });
 
-it('retries compile status polling after a failed dispatch and stops on disposal', async () => {
+it('keeps an idle preview free of background dispatches', async () => {
   const { emit, connect } = fixture();
-  emit.mockResolvedValue(undefined).mockRejectedValueOnce(new Error('Temporary disconnection'));
   const handler = connect();
-  await vi.advanceTimersByTimeAsync(2500);
-  expect(emit.mock.calls).toEqual([['build-state', {}], ['build-state', {}]]);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(emit).not.toHaveBeenCalled();
   handler.dispose();
-  await vi.advanceTimersByTimeAsync(2500);
-  expect(emit).toHaveBeenCalledTimes(2);
 });

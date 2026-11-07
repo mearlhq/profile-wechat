@@ -1,6 +1,6 @@
 // skills/wechat-miniprogram/scripts/bootstrap.ts
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, renameSync as renameSync2, rmSync as rmSync3, writeFileSync as writeFileSync3 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { dirname as dirname3, join as join4 } from "node:path";
@@ -123,7 +123,17 @@ function isProcessGroupAlive(group) {
 // node_modules/.pnpm/@mearl+daemon-core@3.0.0-beta.10/node_modules/@mearl/daemon-core/dist/paths.js
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { createHash } from "node:crypto";
 var DAEMON_HOME = join(homedir(), ".mearl");
+function hashKey(key) {
+  return createHash("sha256").update(key).digest("hex").slice(0, 16);
+}
+function keyedDir(subdir) {
+  return join(DAEMON_HOME, subdir);
+}
+function keyedConfigFile(subdir, key) {
+  return join(keyedDir(subdir), `${hashKey(key)}.json`);
+}
 
 // node_modules/.pnpm/@mearl+daemon-core@3.0.0-beta.10/node_modules/@mearl/daemon-core/dist/registry.js
 import { closeSync, existsSync, linkSync, openSync, statSync, mkdirSync, readFileSync as readFileSync2, writeFileSync, renameSync, rmSync, readdirSync as readdirSync2 } from "node:fs";
@@ -490,7 +500,7 @@ function createRuntimeInstaller(options = {}) {
   const dependencies = JSON.parse(readFileSync5(join4(assets, "dependencies.json"), "utf8"));
   const files = new Map(["runtime.mjs", "browser.js"].map((name) => [name, readFileSync5(join4(assets, name))]));
   const manifest = JSON.stringify({ private: true, type: "module", dependencies });
-  const hash = createHash("sha256").update(manifest);
+  const hash = createHash2("sha256").update(manifest);
   for (const bytes of files.values()) hash.update(bytes);
   const key = hash.digest("hex").slice(0, 24);
   const root = options.cacheRoot ?? join4(homedir2(), ".mearl", "wechat-runtime");
@@ -554,9 +564,20 @@ function setup(context) {
 function runtimeCommand(command, input, signal, progress) {
   return localRuntime().run(command, input, signal, progress);
 }
+async function withPreviewRun(value, run, signal) {
+  const projectPath = projectDirectory(value);
+  const lock = keyedConfigFile("wechat", projectPath) + ".run.lock";
+  const release = await acquireLock(lock, 24e4, "the mini-program run", signal);
+  try {
+    return await run(projectPath);
+  } finally {
+    release();
+  }
+}
 export {
   createRuntimeInstaller,
   detectProject,
   runtimeCommand,
-  setup
+  setup,
+  withPreviewRun
 };

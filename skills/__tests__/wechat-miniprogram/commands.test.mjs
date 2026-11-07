@@ -20,7 +20,7 @@ function directory(miniProgram = false) {
 }
 
 function fixture() {
-  let current = 'wxa-webview-1';
+  const current = 'wxa-webview-1';
   const invoke = vi.fn(async (action, input) => {
     if (action === 'page_frames') return { frames: [
       { isMainFrame: true, frameId: 'main' },
@@ -28,10 +28,8 @@ function fixture() {
     ] };
     if (action === 'page_eval') {
       expect(input.frameId).toBe('main');
-      const [operation] = input.args;
-      if (operation === 'status') return { result: { currentPage: { path: 'pages/index/index', frameName: current }, data: {}, pageStack: [], errors: [] } };
-      if (operation === 'reLaunch') { current = 'wxa-webview-2'; return { result: { errMsg: 'reLaunch:ok' } }; }
-      return { result: { applied: true } };
+      expect(input.args).toEqual([]);
+      return { result: { currentPage: { path: 'pages/index/index', frameName: current }, data: {}, pageStack: [], errors: [] } };
     }
     if (action === 'tab_open') return { tabId: 123 };
     if (action === 'get_versions') return { extensionId: 'a'.repeat(32) };
@@ -40,7 +38,7 @@ function fixture() {
   const page = vi.fn();
   const app = { invoke, page, progress: vi.fn() };
   const runtime = vi.fn(async () => ({ transport: 'native-messaging', url: 'file:///home/test/.mearl/wechat/0123456789abcdef.html', projectPath: '/project', pages: ['pages/index/index', 'pages/detail/index'] }));
-  return { commands: createCommands(app, runtime), invoke, page, runtime };
+  return { commands: createCommands(app, runtime, (path, run) => run(path)), invoke, page, runtime };
 }
 
 describe('WeChat mini-program commands', () => {
@@ -66,7 +64,7 @@ describe('WeChat mini-program commands', () => {
     const { commands, invoke, runtime } = fixture();
     const project = directory(true);
     await commands.prepare({ projectPath: pathToFileURL(project + '/').href });
-    expect(runtime).toHaveBeenCalledExactlyOnceWith('start', { projectPath: project }, undefined);
+    expect(runtime).toHaveBeenCalledExactlyOnceWith('compile', { projectPath: project }, undefined);
     expect(invoke).not.toHaveBeenCalled();
     expect(() => localProjectPath('file://server/share/')).toThrow('local directory');
   });
@@ -82,7 +80,7 @@ describe('WeChat mini-program commands', () => {
     const window = {};
     vi.stubGlobal('window', window);
     vi.stubGlobal('document', { querySelector: () => null });
-    const result = invokeTestApi('status', []);
+    const result = invokeTestApi();
     setTimeout(() => { window.__wxa_test_api__ = {
       ready: Promise.resolve(), currentPage: () => null, pageStack: () => [], pageData: () => null, errors: () => [],
     }; }, 10);
@@ -93,20 +91,20 @@ describe('WeChat mini-program commands', () => {
   it('surfaces the runner startup error while waiting for its hook', async () => {
     vi.stubGlobal('window', {});
     vi.stubGlobal('document', { querySelector: () => ({ textContent: 'Invalid WXML' }) });
-    await expect(invokeTestApi('status', [])).rejects.toThrow('Invalid WXML');
+    await expect(invokeTestApi()).rejects.toThrow('Invalid WXML');
   });
   it('registers commands without starting a process or touching the browser', () => {
     const command = vi.fn();
     const toolboxCommand = vi.fn();
     register({ command, toolboxCommand, runtimeCommand: vi.fn() });
-    expect(command.mock.calls.map(([signature]) => signature)).toEqual(['start <projectPath>', 'stop <projectPath>']);
+    expect(command.mock.calls.map(([signature]) => signature)).toEqual(['run <projectPath>']);
     expect(toolboxCommand.mock.calls.map(([name]) => name)).not.toContain('demo');
   });
   it('opens a project with encoded page parameters and preserves cancellation', async () => {
     const { commands, invoke, page, runtime } = fixture();
     const signal = new AbortController().signal;
-    const result = await commands.start({ projectPath: '/project', path: 'pages/detail/index?id=a%26b', watch: false }, { signal });
-    expect(runtime).toHaveBeenCalledWith('start', { projectPath: '/project', watch: false }, signal);
+    const result = await commands.run({ projectPath: '/project', path: 'pages/detail/index?id=a%26b' }, { signal });
+    expect(runtime).toHaveBeenCalledWith('compile', { projectPath: '/project' }, signal);
     const url = new URL(invoke.mock.calls.find(([action]) => action === 'tab_open')[1].url);
     expect(url.protocol).toBe('file:');
     expect(page).toHaveBeenNthCalledWith(1, 'attach', { tabId: 123, frame: 'main' });
@@ -116,13 +114,20 @@ describe('WeChat mini-program commands', () => {
     expect(launch.get('id')).toBe('a&b');
     expect(result.healthy).toBe(true);
   });
-  it('honors an initial page when reusing an already running tab', async () => {
-    const { commands, invoke } = fixture();
+  it('navigates the existing tab to the newly compiled preview and honors the requested page', async () => {
+    const { commands, invoke, page, runtime } = fixture();
+    runtime.mockResolvedValueOnce({ url: 'file:///preview.html?revision=new', projectPath: '/project', pages: ['pages/detail/index'] });
     const original = invoke.getMockImplementation();
-    invoke.mockImplementation((action, input) => action === 'tab_open' ? { tabId: 123, reused: true } : original(action, input));
-    const result = await commands.start({ projectPath: '/project', path: 'pages/detail/index?id=2' });
-    expect(invoke).toHaveBeenCalledWith('page_eval', expect.objectContaining({ args: ['reLaunch', ['/pages/detail/index?id=2']] }));
-    expect(result.businessFrameId).toBe('wxa-webview-2');
+    invoke.mockImplementation((action, input) => action === 'tab_open'
+      ? { tabId: 123, reused: true, url: 'file:///preview.html?revision=old#?path=pages%2Findex%2Findex' }
+      : original(action, input));
+    await commands.run({ projectPath: '/project', path: 'pages/detail/index?id=2' });
+    const navigation = invoke.mock.calls.find(([action]) => action === 'page_navigate')[1];
+    const url = new URL(navigation.url);
+    expect(navigation.tabId).toBe(123);
+    expect(url.searchParams.get('revision')).toBe('new');
+    expect(Object.fromEntries(new URLSearchParams(url.hash.slice(1)))).toEqual({ path: 'pages/detail/index', id: '2' });
+    expect(invoke.mock.invocationCallOrder[invoke.mock.calls.findIndex(([action]) => action === 'page_navigate')]).toBeLessThan(page.mock.invocationCallOrder[0]);
   });
   it('does not hide runtime errors behind healthy status', async () => {
     const { commands, invoke } = fixture();
@@ -134,9 +139,9 @@ describe('WeChat mini-program commands', () => {
   it('validates mutation inputs before browser calls', async () => {
     const { commands, invoke } = fixture();
     await expect(commands.status({ tabId: 0 })).rejects.toThrow('positive integer');
-    await expect(commands.start({ projectPath: '/project', path: 'https://example.com' })).rejects.toThrow('page path');
-    await expect(commands.start({ projectPath: '/project', path: 'pages/missing/index' })).rejects.toThrow('not declared');
-    await expect(commands.start({ projectPath: '/project', realLogin: true })).rejects.toThrow('Unknown field');
+    await expect(commands.run({ projectPath: '/project', path: 'https://example.com' })).rejects.toThrow('page path');
+    await expect(commands.run({ projectPath: '/project', path: 'pages/missing/index' })).rejects.toThrow('not declared');
+    await expect(commands.run({ projectPath: '/project', realLogin: true })).rejects.toThrow('Unknown field');
     expect(invoke.mock.calls.every(([action]) => action === 'get_versions')).toBe(true);
   });
 });

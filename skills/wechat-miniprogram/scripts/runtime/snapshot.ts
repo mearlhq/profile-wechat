@@ -16,7 +16,6 @@ function staticFiles(root: string, prefix = ''): string[] {
 
 export async function createSnapshotBuilder(options: RuntimeOptions) {
   const project = new MiniProgram(options.projectPath);
-  const builder = new AppBuilder(project);
   const baseLib = resolveBaseLib();
   const runtimeDir = findRuntimeDir();
   const setupFile = options.setup === false ? null : options.setup || findSetupFile(project.projectPath);
@@ -27,9 +26,10 @@ export async function createSnapshotBuilder(options: RuntimeOptions) {
       if (file.endsWith('.js')) libraries[prefix + file] = { data: readFileSync(join(directory, file)).toString('base64'), type: 'text/javascript' };
     }
   }
+  const builder = new AppBuilder(project);
   return {
-    project, builder, setupFile,
-    async build(revision: string) {
+    builder,
+    async build() {
       const build = await builder.build();
       if (Object.keys(project.readAppJson().plugins || {}).length) throw new Error('WeChat plugins are not supported by the local browser host yet');
       if (build.workerModules.length) throw new Error('Mini-program Workers are not supported by the local browser host yet');
@@ -50,8 +50,8 @@ export async function createSnapshotBuilder(options: RuntimeOptions) {
         setup = (await transform(await bundleSetup(setupFile), { format: 'iife', globalName: '__mearlWxaSetup', target: 'chrome141' })).code;
       }
       const setupEnv = Object.fromEntries(Object.entries(process.env).filter(([key, value]) => key.startsWith('WXA_') && value !== undefined));
-      const snapshot = { revision, build: { ...build, plugins: [] }, modules, resources, setup, setupEnv, appid: project.appid, baseLib: { version: baseLib.version, hasWorker: false }, isolated: usesIsolatedContext(baseLib.version) };
-      const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="mearl-wxa-revision" content="${revision}"><title>Mearl · WeChat</title></head><body><div id="wxa-root"></div><script>window.__mearlWxaSnapshot=${escapeScript(JSON.stringify(snapshot))};\n${escapeScript(adapter)}</script></body></html>`;
+      const snapshot = { build: { ...build, plugins: [] }, modules, resources, setup, setupEnv, appid: project.appid, baseLib: { version: baseLib.version, hasWorker: false }, isolated: usesIsolatedContext(baseLib.version) };
+      const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mearl · WeChat</title></head><body><div id="wxa-root"></div><script>window.__mearlWxaSnapshot=${escapeScript(JSON.stringify(snapshot))};\n${escapeScript(adapter)}</script></body></html>`;
       return { html, pages: build.pages };
     },
   };
