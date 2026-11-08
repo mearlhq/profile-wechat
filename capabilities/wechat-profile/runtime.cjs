@@ -89,4 +89,5 @@ module.exports.install = config => {
   }
 
   installBridge(config.actions);
+  if (config.rootContainer?.enabled) window.__mearlInstallDeviceShellRootWebView__?.();
 };

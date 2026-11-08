@@ -2,7 +2,7 @@
 
 [English](./wechat-miniprogram.md) | 简体中文
 
-`wechat-miniprogram` Skill 使用 wxa-runner 0.13.0 运行原生小程序与已编译的 `mp-weixin` 产物，自带运行脚本和浏览器资源。原有微信 H5/WebView 档案可以独立使用。
+`wechat-miniprogram` Skill 使用 wxa-runner 0.13.0 运行原生小程序与已编译的 `mp-weixin` 产物，自带运行脚本和浏览器资源。微信 H5 端模拟可以独立使用。
 
 ## 安装
 
@@ -23,7 +23,7 @@ mearl wxa run /path/to/project
 
 运行源码位于 Skill 的 `scripts/`。根目录构建在 Skill 内生成自包含的运行脚本和浏览器资源。使用 `pnpm check:generated` 检查生成结果。
 
-在工具箱的“微信小程序”中选择项目目录，或运行 `mearl wxa run <项目路径>`。微信 H5 使用独立的 App 档案。
+在工具箱的“微信小程序”中选择项目目录，或运行 `mearl wxa run <项目路径>`。网页在微信中的表现可通过微信 H5 端模拟单独验证。
 
 通过 `device` 选择机型，`orientation` 选择横竖屏。再次运行同一项目并传入机型时，会重新编译并更新原标签页。可用 `path` 指定要打开的页面。
 

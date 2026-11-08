@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-本仓库提供适配 Mearl 3.0.0 的微信 H5 App 档案和 `wechat-miniprogram` Skill。
+本仓库提供适配 Mearl 3.0.0 的微信 H5 端模拟和 `wechat-miniprogram` Skill。
 
 ## 安装
 
@@ -14,9 +14,13 @@
 npx @mearl/setup@3.0.0 profile install mearlhq/wechat-profile
 ```
 
-也可以在扩展快捷设置的客户端下拉菜单中选择「添加 App 档案」。列表为空时，点击「客户端」可直接打开安装弹窗。选择「微信」或输入 `mearlhq/wechat-profile`，若扩展提示授权，请确认来源。安装会保留当前 Preset。如果 Preset 已定义 `wechat`，菜单继续使用 Preset 选定的实现。
+也可以在扩展快捷设置的客户端下拉菜单中选择「添加端模拟」。列表为空时，点击「客户端」可直接打开安装弹窗。选择「微信端模拟」或输入 `mearlhq/wechat-profile`，若扩展提示授权，请确认来源。安装会保留当前 Preset。如果 Preset 已定义 `wechat`，菜单继续使用 Preset 选定的实现。
 
-在 App 模拟菜单中选择 **微信**。`wechat` 档案提供 iOS 或 Android 的 `MicroMessenger` UA 和 `WeixinJSBridgeReady` 事件，模拟 JS-SDK 初始化及 Wi-Fi 网络类型。`wx.getLocation` 通过浏览器定位获取 WGS84 坐标。档案不校验 JS-SDK 签名，登录、支付和小程序 WebView 导航也不在能力范围内。
+在端模拟菜单中选择 **微信内网页**。开启设备外壳后，点击底部手势条，在 **网页环境** 中选择 **微信内网页** 或 **微信小程序内网页**。切换后会重新加载当前网页。小程序内网页的 UA 会带上 `miniProgram` 标记。
+
+Agent 可通过 `mearl get_capabilities` 查询当前浏览器的配置 ID，再用 `mearl set_app_profile` 或 MCP 的 `browser_set_app_profile` 选择环境。独立安装时的 ID 是 `wechat` 和 `wechat-mini-program-webview`。
+
+两种环境均提供 iOS 或 Android 的 `MicroMessenger` UA 和 `WeixinJSBridgeReady` 事件，模拟 JS-SDK 初始化及 Wi-Fi 网络类型。`wx.getLocation` 通过浏览器定位获取 WGS84 坐标。JS-SDK 签名校验、登录、支付和小程序 WebView 导航属于真实客户端能力。
 
 若要保留已有 Preset 的能力，请将以下条目合并到原 Preset 的 `packages` 和 `appProfiles`，或加到继承它的 Preset 中。已有的 `wechat` 别名会改为指向这里选择的实现。
 

@@ -49,6 +49,17 @@ it.each([
   });
 });
 
+it.each(['ios', 'android'])('selects mini-program WebView UA and reuses the WeChat bridge on %s', os => {
+  const miniProgramPath = bundle.manifest.contributions.appProfiles[1];
+  const { defaultAppId, ...miniProgram } = readBundleJson(bundle, miniProgramPath);
+  expect(defaultAppId).toBe('wechat-mini-program-webview');
+  const web = resolveAppProfileDefinition(sdkDefinition, { os });
+  const mini = resolveAppProfileDefinition(miniProgram, { os });
+  expect(mini.ua).toBe(`${web.ua} miniProgram`);
+  expect(mini.injected.pageRuntime).toEqual(web.injected.pageRuntime);
+  expect(mini.injected.settingsGroup).toBe(web.injected.settingsGroup);
+});
+
 function createPage({ bridge, wx, geolocation } = {}) {
   const window = { WeixinJSBridge: bridge, wx };
   const document = new EventTarget();

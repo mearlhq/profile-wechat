@@ -7,17 +7,22 @@
   },
   "resources": {
     "capabilities/wechat-profile/wechat.json": {
-      "sha256": "130409652788ce8550663d4c1f09259a8b6d5db16d486adfa29b4e7866d1e42b",
-      "byteLength": 1693
+      "sha256": "540ca837cdce67dfdc709797d262c5346f189cee080b55c6aa536332a4455b31",
+      "byteLength": 1750
+    },
+    "capabilities/wechat-profile/mini-program-webview.json": {
+      "sha256": "4db2c8191fa8211d984edbcdba9b489550ee16c55fbc4e3a9ede73cb207fbc25",
+      "byteLength": 1955
     },
     "capabilities/wechat-profile/runtime.cjs": {
-      "sha256": "761cefc405f76e9d5f5494e74a4e280123bd2e5d5f03931f91f94ee127509b28",
-      "byteLength": 2630
+      "sha256": "1ccbd9e25577db463d845f4b29dc32b9b40e20ef11302281f04f28998b8a6c3b",
+      "byteLength": 2718
     }
   },
   "contributions": {
     "appProfiles": [
-      "capabilities/wechat-profile/wechat.json"
+      "capabilities/wechat-profile/wechat.json",
+      "capabilities/wechat-profile/mini-program-webview.json"
     ],
     "pageRuntimes": {
       "main": "capabilities/wechat-profile/runtime.cjs"

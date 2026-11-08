@@ -1,12 +1,13 @@
 {
   "name": "wechat-profile/h5",
   "defaultAppId": "wechat",
-  "label": "WeChat",
+  "label": "WeChat web page",
   "labels": {
-    "en": "WeChat",
-    "zh_CN": "微信"
+    "en": "WeChat web page",
+    "zh_CN": "微信内网页"
   },
   "appName": "wechat",
+  "settingsGroup": "webview",
   "defaultAppVersion": "8.0.58",
   "uaTemplate": {
     "ios": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/{v} NetType/WIFI Language/{language}",
@@ -21,7 +22,7 @@
   },
   "pageRuntime": {
     "id": "wechat-profile/main",
-    "sha256": "761cefc405f76e9d5f5494e74a4e280123bd2e5d5f03931f91f94ee127509b28"
+    "sha256": "1ccbd9e25577db463d845f4b29dc32b9b40e20ef11302281f04f28998b8a6c3b"
   },
   "uaTokens": [],
   "globals": {},

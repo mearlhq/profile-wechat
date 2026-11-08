@@ -2,7 +2,7 @@
 
 English | [简体中文](./wechat-miniprogram.zh-CN.md)
 
-The `wechat-miniprogram` Skill runs native mini-program projects and compiled `mp-weixin` output using wxa-runner 0.13.0. It includes its runtime scripts and browser assets. Existing WeChat H5/WebView profiles remain independently usable.
+The `wechat-miniprogram` Skill runs native mini-program projects and compiled `mp-weixin` output using wxa-runner 0.13.0. It includes its runtime scripts and browser assets. WeChat H5 emulation is available separately.
 
 ## Installation
 

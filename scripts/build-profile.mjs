@@ -7,6 +7,7 @@ const packageId = 'wechat-profile';
 const bundleUrl = new URL(preset.packages[packageId].source, root);
 const runtimePath = 'capabilities/wechat-profile/runtime.cjs';
 const profilePath = 'capabilities/wechat-profile/wechat.json';
+const miniProgramPath = 'capabilities/wechat-profile/mini-program-webview.json';
 const runtimeUrl = new URL(runtimePath, root);
 const profileUrl = new URL(profilePath, root);
 
@@ -19,12 +20,13 @@ function jsonBytes(value) {
 }
 
 const runtime = resource(await readFile(runtimeUrl));
-const profile = jsonBytes({
+const definition = {
   name: preset.appProfiles.wechat,
   defaultAppId: 'wechat',
-  label: 'WeChat',
-  labels: { en: 'WeChat', zh_CN: '微信' },
+  label: 'WeChat web page',
+  labels: { en: 'WeChat web page', zh_CN: '微信内网页' },
   appName: 'wechat',
+  settingsGroup: 'webview',
   defaultAppVersion: '8.0.58',
   uaTemplate: {
     ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/{v} NetType/WIFI Language/{language}',
@@ -53,17 +55,37 @@ const profile = jsonBytes({
     description: 'Simulate a WeChat H5 WebView with a mobile user agent and basic JSBridge.',
     limitations: ['SDK initialization and network type are simulated. Location uses the browser permission. Native APIs such as login and payment are unavailable.'],
   },
+};
+const profile = jsonBytes(definition);
+const miniProgram = jsonBytes({
+  ...definition,
+  name: `${packageId}/mini-program-webview`,
+  defaultAppId: 'wechat-mini-program-webview',
+  label: 'WeChat mini-program web page',
+  labels: { en: 'WeChat mini-program web page', zh_CN: '微信小程序内网页' },
+  uaTemplate: {
+    ios: `${definition.uaTemplate.ios} miniProgram`,
+    android: `${definition.uaTemplate.android} miniProgram`,
+  },
+  usage: {
+    description: 'Simulate an H5 page opened in a WeChat mini-program WebView with the miniProgram user-agent marker and basic WeChat JSBridge.',
+    limitations: [...definition.usage.limitations, 'Mini-program navigation APIs are unavailable.'],
+  },
 });
 const bundle = jsonBytes({
   schemaVersion: 1,
   id: packageId,
   version: preset.version,
   requires: preset.requires,
-  resources: { [profilePath]: resource(profile), [runtimePath]: runtime },
-  contributions: { appProfiles: [profilePath], pageRuntimes: { main: runtimePath } },
+  resources: {
+    [profilePath]: resource(profile),
+    [miniProgramPath]: resource(miniProgram),
+    [runtimePath]: runtime,
+  },
+  contributions: { appProfiles: [profilePath, miniProgramPath], pageRuntimes: { main: runtimePath } },
 });
 
-for (const [url, bytes] of [[profileUrl, profile], [bundleUrl, bundle]]) {
+for (const [url, bytes] of [[profileUrl, profile], [new URL(miniProgramPath, root), miniProgram], [bundleUrl, bundle]]) {
   if (process.argv.includes('--check')) {
     if (!(await readFile(url)).equals(bytes)) throw new Error(`${url.pathname} is stale. Run pnpm build.`);
   } else {
