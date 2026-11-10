@@ -11,10 +11,10 @@ Start with a working Mearl 3.0.0 installation and its connected browser extensio
 ### WeChat H5
 
 ```sh
-npx @mearl/setup@3.0.0 profile install mearlhq/wechat-profile
+npx @mearl/setup@3.0.0 profile install mearlhq/profile-wechat
 ```
 
-In the extension's quick settings, open the App selector and choose **Add App emulation**. If the list is empty, click the App button to open the installer. Select **WeChat emulation** or enter `mearlhq/wechat-profile`, then approve the source if prompted. The installation keeps the active Preset. If the Preset already defines `wechat`, the menu continues to use the Preset's implementation.
+In the extension's quick settings, open the App selector and choose **Add App emulation**. If the list is empty, click the App button to open the installer. Select **WeChat emulation** or enter `mearlhq/profile-wechat`, then approve the source if prompted. The installation keeps the active Preset. If the Preset already defines `wechat`, the menu continues to use the Preset's implementation.
 
 Select **WeChat web page** in the App emulation menu. With the device shell enabled, click the bottom gesture bar and choose **WeChat web page** or **WeChat mini-program web page** under **Web page environment**. Switching reloads the current page. The mini-program WebView adds the `miniProgram` user-agent marker.
 
@@ -27,13 +27,13 @@ To keep the capabilities of an existing Preset, merge these entries into its `pa
 ```json
 {
   "packages": {
-    "wechat-profile": {
-      "source": "https://raw.githubusercontent.com/mearlhq/wechat-profile/main/bundle.json",
+    "profile-wechat": {
+      "source": "https://raw.githubusercontent.com/mearlhq/profile-wechat/main/bundle.json",
       "targets": ["browser"]
     }
   },
   "appProfiles": {
-    "wechat": "wechat-profile/h5"
+    "wechat": "profile-wechat/h5"
   }
 }
 ```
@@ -43,7 +43,7 @@ To keep the capabilities of an existing Preset, merge these entries into its `pa
 Install the Skill on the browser host and allow file URL access for the matching Mearl extension. The Skill opens native mini-program projects and compiled `mp-weixin` output as a self-contained `file://` preview. Skill installation is independent of the selected Preset.
 
 ```sh
-npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/wechat-profile --skill wechat-miniprogram --yes
+npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/profile-wechat --skill wechat-miniprogram --yes
 mearl wxa run /path/to/project
 ```
 

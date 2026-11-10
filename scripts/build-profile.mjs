@@ -3,11 +3,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 const root = new URL('../', import.meta.url);
 const preset = JSON.parse(await readFile(new URL('preset.json', root), 'utf8'));
-const packageId = 'wechat-profile';
+const packageId = 'profile-wechat';
 const bundleUrl = new URL(preset.packages[packageId].source, root);
-const runtimePath = 'capabilities/wechat-profile/runtime.cjs';
-const profilePath = 'capabilities/wechat-profile/wechat.json';
-const miniProgramPath = 'capabilities/wechat-profile/mini-program-webview.json';
+const runtimePath = 'capabilities/profile-wechat/runtime.cjs';
+const profilePath = 'capabilities/profile-wechat/wechat.json';
+const miniProgramPath = 'capabilities/profile-wechat/mini-program-webview.json';
 const runtimeUrl = new URL(runtimePath, root);
 const profileUrl = new URL(profilePath, root);
 

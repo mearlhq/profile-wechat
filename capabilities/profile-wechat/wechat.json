@@ -1,5 +1,5 @@
 {
-  "name": "wechat-profile/h5",
+  "name": "profile-wechat/h5",
   "defaultAppId": "wechat",
   "label": "WeChat web page",
   "labels": {
@@ -21,7 +21,7 @@
     "defaultLanguage": "zh_CN"
   },
   "pageRuntime": {
-    "id": "wechat-profile/main",
+    "id": "profile-wechat/main",
     "sha256": "1ccbd9e25577db463d845f4b29dc32b9b40e20ef11302281f04f28998b8a6c3b"
   },
   "uaTokens": [],

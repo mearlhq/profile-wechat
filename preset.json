@@ -6,12 +6,12 @@
     "mearlApi": "^1.0.0"
   },
   "packages": {
-    "wechat-profile": {
+    "profile-wechat": {
       "source": "./bundle.json",
       "targets": ["browser"]
     }
   },
   "appProfiles": {
-    "wechat": "wechat-profile/h5"
+    "wechat": "profile-wechat/h5"
   }
 }

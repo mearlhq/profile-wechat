@@ -11,10 +11,10 @@
 ### 微信 H5
 
 ```sh
-npx @mearl/setup@3.0.0 profile install mearlhq/wechat-profile
+npx @mearl/setup@3.0.0 profile install mearlhq/profile-wechat
 ```
 
-也可以在扩展快捷设置的客户端下拉菜单中选择「添加端模拟」。列表为空时，点击「客户端」可直接打开安装弹窗。选择「微信端模拟」或输入 `mearlhq/wechat-profile`，若扩展提示授权，请确认来源。安装会保留当前 Preset。如果 Preset 已定义 `wechat`，菜单继续使用 Preset 选定的实现。
+也可以在扩展快捷设置的客户端下拉菜单中选择「添加端模拟」。列表为空时，点击「客户端」可直接打开安装弹窗。选择「微信端模拟」或输入 `mearlhq/profile-wechat`，若扩展提示授权，请确认来源。安装会保留当前 Preset。如果 Preset 已定义 `wechat`，菜单继续使用 Preset 选定的实现。
 
 在端模拟菜单中选择 **微信内网页**。开启设备外壳后，点击底部手势条，在 **网页环境** 中选择 **微信内网页** 或 **微信小程序内网页**。切换后会重新加载当前网页。小程序内网页的 UA 会带上 `miniProgram` 标记。
 
@@ -27,13 +27,13 @@ Agent 可通过 `mearl get_capabilities` 查询当前浏览器的配置 ID，再
 ```json
 {
   "packages": {
-    "wechat-profile": {
-      "source": "https://raw.githubusercontent.com/mearlhq/wechat-profile/main/bundle.json",
+    "profile-wechat": {
+      "source": "https://raw.githubusercontent.com/mearlhq/profile-wechat/main/bundle.json",
       "targets": ["browser"]
     }
   },
   "appProfiles": {
-    "wechat": "wechat-profile/h5"
+    "wechat": "profile-wechat/h5"
   }
 }
 ```
@@ -43,7 +43,7 @@ Agent 可通过 `mearl get_capabilities` 查询当前浏览器的配置 ID，再
 在浏览器所在机器上安装 Skill，并为配套的 Mearl 扩展允许文件网址访问。Skill 将原生小程序和已编译的 `mp-weixin` 产物作为自包含的 `file://` 预览打开。安装 Skill 独立于当前选用的 Preset。
 
 ```sh
-npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/wechat-profile --skill wechat-miniprogram --yes
+npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/profile-wechat --skill wechat-miniprogram --yes
 mearl wxa run /path/to/project
 ```
 

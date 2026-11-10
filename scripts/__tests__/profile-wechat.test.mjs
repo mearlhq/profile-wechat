@@ -44,7 +44,7 @@ it.each([
   expect(profile.ua).not.toMatch(/[{}]|miniProgram/);
   const path = bundle.manifest.contributions.pageRuntimes.main;
   expect(profile.injected.pageRuntime).toEqual({
-    id: 'wechat-profile/main',
+    id: 'profile-wechat/main',
     sha256: bundle.manifest.resources[path].sha256,
   });
 });
@@ -128,7 +128,7 @@ it('preserves a bridge and SDK already provided by the page', async () => {
 });
 
 it('can install the JSBridge alongside an existing WebView runtime', async () => {
-  const { installBridge } = createRequire(import.meta.url)('../../capabilities/wechat-profile/runtime.cjs');
+  const { installBridge } = createRequire(import.meta.url)('../../capabilities/profile-wechat/runtime.cjs');
   const wx = { miniProgram: { getEnv: vi.fn() } };
   vi.stubGlobal('window', { wx });
   vi.stubGlobal('document', new EventTarget());

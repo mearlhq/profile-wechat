@@ -1,31 +1,31 @@
 {
   "schemaVersion": 1,
-  "id": "wechat-profile",
+  "id": "profile-wechat",
   "version": "3.0.0",
   "requires": {
     "mearlApi": "^1.0.0"
   },
   "resources": {
-    "capabilities/wechat-profile/wechat.json": {
-      "sha256": "540ca837cdce67dfdc709797d262c5346f189cee080b55c6aa536332a4455b31",
+    "capabilities/profile-wechat/wechat.json": {
+      "sha256": "8c00ad148ba4325c21f7f506801790ab2fdc7af9db81844c203259452606d7a9",
       "byteLength": 1750
     },
-    "capabilities/wechat-profile/mini-program-webview.json": {
-      "sha256": "4db2c8191fa8211d984edbcdba9b489550ee16c55fbc4e3a9ede73cb207fbc25",
+    "capabilities/profile-wechat/mini-program-webview.json": {
+      "sha256": "aa0fb3c871b2a11b02b57af7182369694d650f8701ee0b769a5f1fd8d192edf0",
       "byteLength": 1955
     },
-    "capabilities/wechat-profile/runtime.cjs": {
+    "capabilities/profile-wechat/runtime.cjs": {
       "sha256": "1ccbd9e25577db463d845f4b29dc32b9b40e20ef11302281f04f28998b8a6c3b",
       "byteLength": 2718
     }
   },
   "contributions": {
     "appProfiles": [
-      "capabilities/wechat-profile/wechat.json",
-      "capabilities/wechat-profile/mini-program-webview.json"
+      "capabilities/profile-wechat/wechat.json",
+      "capabilities/profile-wechat/mini-program-webview.json"
     ],
     "pageRuntimes": {
-      "main": "capabilities/wechat-profile/runtime.cjs"
+      "main": "capabilities/profile-wechat/runtime.cjs"
     }
   }
 }
