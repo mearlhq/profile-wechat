@@ -1,28 +1,28 @@
-# WeChat Profile for Mearl
+# Mearl 微信端模拟
 
-English | [简体中文](README.zh-CN.md)
+简体中文 | [English](README.en.md)
 
-This repository ships WeChat H5 emulation and the `wechat-miniprogram` Skill for Mearl 3.0.0.
+本仓库提供适配 Mearl 3.0.0 的微信 H5 端模拟和 `wechat-miniprogram` Skill。
 
-## Install
+## 安装
 
-Start with a working Mearl 3.0.0 installation and its connected browser extension.
+需要已安装 Mearl 3.0.0，并连接配套浏览器扩展。
 
-### WeChat H5
+### 微信 H5
 
 ```sh
 npx @mearl/setup@3.0.0 profile install mearlhq/profile-wechat
 ```
 
-In the extension's quick settings, open the App selector and choose **Add App emulation**. If the list is empty, click the App button to open the installer. Select **WeChat emulation** or enter `mearlhq/profile-wechat`, then approve the source if prompted. The installation keeps the active Preset. If the Preset already defines `wechat`, the menu continues to use the Preset's implementation.
+也可以在扩展快捷设置的客户端下拉菜单中选择「添加端模拟」。列表为空时，点击「客户端」可直接打开安装弹窗。选择「微信端模拟」或输入 `mearlhq/profile-wechat`，若扩展提示授权，请确认来源。安装会保留当前 Preset。如果 Preset 已定义 `wechat`，菜单继续使用 Preset 选定的实现。
 
-Select **WeChat web page** in the App emulation menu. With the device shell enabled, click the bottom gesture bar and choose **WeChat web page** or **WeChat mini-program web page** under **Web page environment**. Switching reloads the current page. The mini-program WebView adds the `miniProgram` user-agent marker.
+在端模拟菜单中选择 **微信内网页**。开启设备外壳后，点击底部手势条，在 **网页环境** 中选择 **微信内网页** 或 **微信小程序内网页**。切换后会重新加载当前网页。小程序内网页的 UA 会带上 `miniProgram` 标记。
 
-An Agent can use `mearl get_capabilities` to find the two installed IDs, then select one with `mearl set_app_profile` or the MCP tool `browser_set_app_profile`. The standalone IDs are `wechat` and `wechat-mini-program-webview`.
+Agent 可通过 `mearl get_capabilities` 查询当前浏览器的配置 ID，再用 `mearl set_app_profile` 或 MCP 的 `browser_set_app_profile` 选择环境。独立安装时的 ID 是 `wechat` 和 `wechat-mini-program-webview`。
 
-Both environments supply an iOS or Android `MicroMessenger` user agent and the `WeixinJSBridgeReady` event. They simulate JS-SDK initialization and a Wi-Fi network type. `wx.getLocation` obtains WGS84 coordinates via browser geolocation. JS-SDK signatures are unchecked, and login, payment, and mini-program WebView navigation are outside the scope of these environments.
+两种环境均提供 iOS 或 Android 的 `MicroMessenger` UA 和 `WeixinJSBridgeReady` 事件，模拟 JS-SDK 初始化及 Wi-Fi 网络类型。`wx.getLocation` 通过浏览器定位获取 WGS84 坐标。JS-SDK 签名校验、登录、支付和小程序 WebView 导航属于真实客户端能力。
 
-To keep the capabilities of an existing Preset, merge these entries into its `packages` and `appProfiles` sections, or put them in a Preset that extends it. An existing `wechat` alias will point to the implementation selected here.
+若要保留已有 Preset 的能力，请将以下条目合并到原 Preset 的 `packages` 和 `appProfiles`，或加到继承它的 Preset 中。已有的 `wechat` 别名会改为指向这里选择的实现。
 
 ```json
 {
@@ -38,20 +38,20 @@ To keep the capabilities of an existing Preset, merge these entries into its `pa
 }
 ```
 
-### Run a local mini-program
+### 运行本地小程序
 
-Install the Skill on the browser host and allow file URL access for the matching Mearl extension. The Skill opens native mini-program projects and compiled `mp-weixin` output as a self-contained `file://` preview. Skill installation is independent of the selected Preset.
+在浏览器所在机器上安装 Skill，并为配套的 Mearl 扩展允许文件网址访问。Skill 将原生小程序和已编译的 `mp-weixin` 产物作为自包含的 `file://` 预览打开。安装 Skill 独立于当前选用的 Preset。
 
 ```sh
 npx @mearl/setup@3.0.0 plugin install https://github.com/mearlhq/profile-wechat --skill wechat-miniprogram --yes
 mearl wxa run /path/to/project
 ```
 
-See the [mini-program guide](docs/wechat-miniprogram.md) for compiler requirements, request mocks, and browser permissions.
+编译器要求、请求 Mock 和浏览器权限见[小程序指南](docs/wechat-miniprogram.md)。
 
-## Develop
+## 开发
 
-Use Node.js 22.23.4 or later and pnpm 10.34.5.
+使用 Node.js 22.23.4 或更高版本与 pnpm 10.34.5。
 
 ```sh
 pnpm install --frozen-lockfile
@@ -61,4 +61,4 @@ pnpm test
 pnpm check:generated
 ```
 
-Source is licensed under [Apache-2.0](LICENSE). Bundled dependencies retain their own licenses. See the [third-party notices](skills/wechat-miniprogram/assets/runtime/THIRD_PARTY_NOTICES.md).
+源码采用 [Apache-2.0](LICENSE)，随附依赖保留各自的许可证。见[第三方声明](skills/wechat-miniprogram/assets/runtime/THIRD_PARTY_NOTICES.md)。
